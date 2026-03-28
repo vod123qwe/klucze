@@ -132,11 +132,12 @@ export const db = new KluczeDB()
 // ─── REAL DATA SEED (Moja Skawina, March 2026) ────────────────────────────────
 
 async function _seedRealData(tx: KluczeDB) {
-  // Only seed if DB is empty (fresh install or first upgrade)
+  // Seed if property OR expenses are missing
   const propCount = await tx.property.count()
-  if (propCount > 0) return
+  const expCount = await tx.householdExpenses.count()
+  if (propCount > 0 && expCount > 0) return
 
-  await tx.property.add({
+  await tx.property.put({
     id: 'main',
     investmentName: 'Moja Skawina',
     developer: 'EPOL HOLDING Sp. z o.o.',
@@ -251,7 +252,7 @@ async function _seedRealData(tx: KluczeDB) {
       'Rachunek powierniczy: ING Bank Śląski S.A. (otwarty).',
   })
 
-  await tx.purchaseCosts.bulkAdd([
+  await tx.purchaseCosts.bulkPut([
     {
       id: 'cost-1',
       name: 'Cena lokalu mieszkalnego M.48',
@@ -314,7 +315,7 @@ async function _seedRealData(tx: KluczeDB) {
     },
   ])
 
-  await tx.mortgage.add({
+  await tx.mortgage.put({
     id: 'main',
     bankName: 'Santander Bank Polska S.A.',
     amount: 881100,
@@ -332,7 +333,7 @@ async function _seedRealData(tx: KluczeDB) {
     linkedDocumentIds: [],
   })
 
-  await tx.mortgageTranches.bulkAdd([
+  await tx.mortgageTranches.bulkPut([
     {
       id: 'tranche-1',
       mortgageId: 'main',
@@ -390,13 +391,13 @@ async function _seedRealData(tx: KluczeDB) {
     },
   ])
 
-  await tx.householdIncomes.bulkAdd([
+  await tx.householdIncomes.bulkPut([
     { id: 'income-1', label: 'Jarek', person: 'me', amountNet: 25200, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 0 },
     { id: 'income-2', label: 'Blanka', person: 'partner', amountNet: 5000, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 1 },
     { id: 'income-3', label: 'Dziecko', person: 'other', amountNet: 800, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 2 },
   ])
 
-  await tx.householdExpenses.bulkAdd([
+  await tx.householdExpenses.bulkPut([
     { id: 'exp-1',  label: 'Wynajem mieszkania',                         category: 'Mieszkanie (wynajem/czynsz)', amount: 1700,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 0 },
     { id: 'exp-2',  label: 'Czynsz administracyjny',                     category: 'Mieszkanie (wynajem/czynsz)', amount: 800,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 1 },
     { id: 'exp-13', label: 'Ubezpieczenie na życie (Spokojna Hipoteka)', category: 'Bank i ubezpieczenia',        amount: 308.39, frequency: 'monthly', month: null, isLiability: false, sortIndex: 2 },
@@ -419,16 +420,16 @@ async function _seedRealData(tx: KluczeDB) {
     { id: 'exp-6',  label: 'Przedszkole',                                category: 'Dziecko',                     amount: 600,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 15 },
   ])
 
-  await tx.expenseCategories.bulkAdd(
+  await tx.expenseCategories.bulkPut(
     DEFAULT_CATEGORIES.map((name, i) => ({ id: name, name, sortIndex: i }))
   )
 
   // Seed current month as the first open budget month
   const now = new Date()
   const seedMonthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  await tx.budgetMonths.add({ id: seedMonthId, openedAt: now.toISOString() })
+  await tx.budgetMonths.put({ id: seedMonthId, openedAt: now.toISOString() })
 
-  await tx.savingsPlan.add({
+  await tx.savingsPlan.put({
     id: 'main',
     initialSavings: 8000,
     safetyBuffer: 30000,
@@ -436,7 +437,7 @@ async function _seedRealData(tx: KluczeDB) {
     lastUpdated: new Date().toISOString(),
   })
 
-  await tx.milestones.bulkAdd([
+  await tx.milestones.bulkPut([
     {
       id: 'ms-1',
       label: 'Rezerwacja mieszkania',
@@ -511,7 +512,7 @@ async function _seedRealData(tx: KluczeDB) {
     },
   ])
 
-  await tx.scenarios.bulkAdd([
+  await tx.scenarios.bulkPut([
     {
       id: 'optimistic',
       name: 'Optymistyczny',
@@ -543,11 +544,9 @@ export async function seedDefaultData() {
   // This prevents React StrictMode's double-invoke from causing ConstraintError.
   await db.transaction('rw', [
     db.property, db.purchaseCosts, db.mortgage, db.mortgageTranches,
-    db.householdIncomes, db.householdExpenses, db.savingsPlan,
-    db.milestones, db.scenarios,
+    db.householdIncomes, db.householdExpenses, db.expenseCategories,
+    db.budgetMonths, db.savingsPlan, db.milestones, db.scenarios,
   ], async () => {
-    const propCount = await db.property.count()
-    if (propCount > 0) return
     await _seedRealData(db as unknown as KluczeDB)
   })
 }
