@@ -237,6 +237,135 @@ type UndoEntry =
   | { type: 'delInc';    record: HouseholdIncome }
   | { type: 'updateInc'; id: string; prev: Partial<HouseholdIncome>; next: Partial<HouseholdIncome> }
 
+// ─── Quick Add Dialog (oneTime, for current month) ────────────────────────────
+
+function QuickAddDialog({
+  open, onClose, mode, defaultCategory, categories, month,
+  onAddedExp, onAddedInc,
+}: {
+  open: boolean
+  onClose: () => void
+  mode: 'income' | 'expense'
+  defaultCategory?: string
+  categories: string[]
+  month: string
+  onAddedExp: (r: HouseholdExpense) => void
+  onAddedInc: (r: HouseholdIncome) => void
+}) {
+  const [label, setLabel] = useState('')
+  const [amount, setAmount] = useState('')
+  const [category, setCategory] = useState(defaultCategory ?? categories[0] ?? 'Inne')
+  const [person, setPerson] = useState<'me' | 'partner' | 'other'>('me')
+
+  useEffect(() => {
+    if (open) { setLabel(''); setAmount(''); setCategory(defaultCategory ?? categories[0] ?? 'Inne'); setPerson('me') }
+  }, [open, defaultCategory, categories])
+
+  async function save() {
+    const amt = parseFloat(amount.replace(',', '.'))
+    if (!label.trim() || isNaN(amt) || amt <= 0) return
+    if (mode === 'expense') {
+      const all = await db.householdExpenses.toArray()
+      const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
+      const record: HouseholdExpense = {
+        id: generateId(), label: label.trim(), category,
+        amount: amt, frequency: 'oneTime', month, isLiability: false, sortIndex: maxIdx + 1,
+      }
+      await db.householdExpenses.add(record)
+      onAddedExp(record)
+      toast.success('Dodano wydatek')
+    } else {
+      const all = await db.householdIncomes.toArray()
+      const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
+      const record: HouseholdIncome = {
+        id: generateId(), label: label.trim(), person,
+        amountNet: amt, frequency: 'oneTime', month, activeFrom: month, activeTo: null, sortIndex: maxIdx + 1,
+      }
+      await db.householdIncomes.add(record)
+      onAddedInc(record)
+      toast.success('Dodano przychód')
+    }
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{mode === 'expense' ? 'Dodaj wydatek' : 'Dodaj przychód'}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {mode === 'expense' && (
+            <div>
+              <p className="text-xs text-muted-foreground font-medium mb-2">Kategoria</p>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategory(cat)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                      category === cat
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-muted/50 border-border hover:bg-muted',
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {mode === 'income' && (
+            <div>
+              <p className="text-xs text-muted-foreground font-medium mb-2">Osoba</p>
+              <div className="flex gap-2">
+                {(['me', 'partner', 'other'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPerson(p)}
+                    className={cn(
+                      'flex-1 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                      person === p
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-muted/50 border-border hover:bg-muted',
+                    )}
+                  >
+                    {p === 'me' ? 'Ja' : p === 'partner' ? 'Partner/ka' : 'Inne'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Nazwa</Label>
+              <Input
+                autoFocus
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                placeholder={mode === 'expense' ? 'np. Czynsz' : 'np. Wynagrodzenie'}
+                onKeyDown={e => e.key === 'Enter' && save()}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Kwota (zł)</Label>
+              <Input
+                type="number"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="0"
+                onKeyDown={e => e.key === 'Enter' && save()}
+              />
+            </div>
+          </div>
+          <Button className="w-full" onClick={save}>Zapisz</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Monthly Overview ─────────────────────────────────────────────────────────
 
 function MonthlyOverview({
@@ -256,9 +385,7 @@ function MonthlyOverview({
 }) {
   const [month, setMonth] = useState(currentMonth())
   const [drag, setDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
-  const [addingIncCategory, setAddingIncCategory] = useState(false)
-  const [addingExpCategory, setAddingExpCategory] = useState<string | null>(null)
-  const [addForm, setAddForm] = useState({ label: '', amount: '' })
+  const [quickDialog, setQuickDialog] = useState<{ mode: 'income' | 'expense'; defaultCategory?: string } | null>(null)
   const [openDialog, setOpenDialog] = useState(false)
   const [dupFrom, setDupFrom] = useState<string | null>(null)
 
@@ -320,12 +447,8 @@ function MonthlyOverview({
     toast('Ponowiono')
   }, [])
 
-  // Reset add forms when switching months
-  useEffect(() => {
-    setAddingExpCategory(null)
-    setAddingIncCategory(false)
-    setAddForm({ label: '', amount: '' })
-  }, [month])
+  // Close quick dialog on month change
+  useEffect(() => { setQuickDialog(null) }, [month])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -494,35 +617,6 @@ function MonthlyOverview({
 
   // ── add handlers ──────────────────────────────────────────────────────────────
 
-  async function saveAddIncome() {
-    if (!addForm.label.trim()) return
-    const all = await db.householdIncomes.toArray()
-    const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
-    const record: HouseholdIncome = {
-      id: generateId(), label: addForm.label.trim(), person: 'other',
-      amountNet: parseFloat(addForm.amount.replace(',', '.')) || 0,
-      frequency: 'oneTime', month, activeFrom: month, activeTo: null, sortIndex: maxIdx + 1,
-    }
-    await db.householdIncomes.add(record)
-    pushUndo({ type: 'addInc', record })
-    setAddForm({ label: '', amount: '' }); setAddingIncCategory(false)
-    toast.success('Dodano przychód')
-  }
-
-  async function saveAddExpense(category: string) {
-    if (!addForm.label.trim()) return
-    const all = await db.householdExpenses.toArray()
-    const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
-    const record: HouseholdExpense = {
-      id: generateId(), label: addForm.label.trim(), category,
-      amount: parseFloat(addForm.amount.replace(',', '.')) || 0,
-      frequency: 'oneTime', month, isLiability: false, sortIndex: maxIdx + 1,
-    }
-    await db.householdExpenses.add(record)
-    pushUndo({ type: 'addExp', record })
-    setAddForm({ label: '', amount: '' }); setAddingExpCategory(null)
-    toast.success('Dodano wydatek')
-  }
 
   if (incomes.length === 0 && expenses.length === 0) {
     return <SectionEmptyState title="Brak danych budżetowych" description="Dodaj przychody i wydatki w zakładkach poniżej" />
@@ -668,14 +762,17 @@ function MonthlyOverview({
 
         {/* ── Przychody ── */}
         <div className="rounded-lg border overflow-hidden">
-          <div
-            className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between group/inc cursor-pointer"
-            onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
-          >
+          <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between">
             <span>Przychody</span>
             <div className="flex items-center gap-2">
               <span className="tabular-nums font-medium opacity-80">{formatPLN(totalIncome)}</span>
-              <Plus className="h-3.5 w-3.5 opacity-0 group-hover/inc:opacity-100 transition-opacity" />
+              <button
+                className="rounded-full p-0.5 hover:bg-white/20 transition-colors"
+                onClick={() => setQuickDialog({ mode: 'income' })}
+                title="Dodaj przychód"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
           <table className="w-full text-sm">
@@ -716,14 +813,6 @@ function MonthlyOverview({
                   </td>
                 </tr>
               ))}
-              {addingIncCategory && (
-                <AddRow
-                  addForm={addForm}
-                  setAddForm={setAddForm}
-                  onSave={saveAddIncome}
-                  onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }}
-                />
-              )}
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
@@ -738,7 +827,16 @@ function MonthlyOverview({
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white flex items-center justify-between">
             <span>Wydatki</span>
-            <span className="tabular-nums font-medium opacity-80">{formatPLN(totalExpenses)}</span>
+            <div className="flex items-center gap-2">
+              <span className="tabular-nums font-medium opacity-80">{formatPLN(totalExpenses)}</span>
+              <button
+                className="rounded-full p-0.5 hover:bg-white/20 transition-colors"
+                onClick={() => setQuickDialog({ mode: 'expense' })}
+                title="Dodaj wydatek"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
           <table className="w-full text-sm">
             <tbody>
@@ -747,7 +845,7 @@ function MonthlyOverview({
                   <tr
                     key={`cat-${category}`}
                     className="group/cat bg-muted/60 cursor-pointer"
-                    onClick={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(category) }}
+                    onClick={() => setQuickDialog({ mode: 'expense', defaultCategory: category })}
                   >
                     <td colSpan={3} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
                       {category}
@@ -810,10 +908,6 @@ function MonthlyOverview({
                       </tr>
                     )
                   })}
-                  {/* Add row per category */}
-                  {addingExpCategory === category && (
-                    <AddRow addForm={addForm} setAddForm={setAddForm} onSave={() => saveAddExpense(category)} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(null) }} />
-                  )}
                 </>
               ))}
               {mortgageLoad > 0 && (
@@ -839,6 +933,16 @@ function MonthlyOverview({
         </div>
       </div>
 
+      <QuickAddDialog
+        open={quickDialog !== null}
+        onClose={() => setQuickDialog(null)}
+        mode={quickDialog?.mode ?? 'expense'}
+        defaultCategory={quickDialog?.defaultCategory}
+        categories={categoryOrder}
+        month={month}
+        onAddedExp={r => pushUndo({ type: 'addExp', record: r })}
+        onAddedInc={r => pushUndo({ type: 'addInc', record: r })}
+      />
       </>}
     </div>
   )
@@ -1088,20 +1192,10 @@ export default function BudzetPage() {
         title="Budżet domowy"
         description="Przychody, wydatki i projekcja oszczędności miesiąc po miesiącu"
         actions={
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setCatManagerOpen(true)}>
-              <Settings2 className="h-4 w-4 mr-1" />
-              Kategorie
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setIncDialog({ open: true })}>
-              <Plus className="h-4 w-4 mr-1" />
-              Przychód
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setExpDialog({ open: true })}>
-              <Plus className="h-4 w-4 mr-1" />
-              Wydatek
-            </Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={() => setCatManagerOpen(true)}>
+            <Settings2 className="h-4 w-4 mr-1" />
+            Kategorie
+          </Button>
         }
       />
 
