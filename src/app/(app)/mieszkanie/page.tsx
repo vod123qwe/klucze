@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, ExternalLink, MapPin, Calendar, Building2, Home, Pencil, Check } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, MapPin, Calendar, Building2, Home, Pencil, Check, Car, Archive, Layers, Users } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { formatDate, formatPLN } from '@/lib/utils/format'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -205,14 +205,27 @@ export default function MieszkaniePage() {
           </div>
         </div>
 
-        {/* Extras chips */}
-        {(form.extras.balcony || form.extras.garden || form.extras.terrace) && (
-          <div className="px-5 py-2.5 border-t flex gap-2">
-            {form.extras.balcony && <Badge variant="secondary">Balkon</Badge>}
-            {form.extras.garden && <Badge variant="secondary">Ogródek</Badge>}
-            {form.extras.terrace && <Badge variant="secondary">Taras</Badge>}
-          </div>
-        )}
+        {/* Extras + Garaż + Komórka */}
+        <div className="px-5 py-2.5 border-t flex gap-2 flex-wrap">
+          {form.extras.balcony && (
+            <Badge variant="secondary" className="gap-1">
+              Balkony ×3
+              <span className="text-muted-foreground font-normal">33,61 m²</span>
+            </Badge>
+          )}
+          {form.extras.garden && <Badge variant="secondary">Ogródek</Badge>}
+          {form.extras.terrace && <Badge variant="secondary">Taras</Badge>}
+          {purchaseCosts?.some(c => c.category === 'parking') && (
+            <Badge className="gap-1 bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-50" variant="outline">
+              <Car className="h-3 w-3" />Garaż podziemny
+            </Badge>
+          )}
+          {purchaseCosts?.some(c => c.category === 'storage') && (
+            <Badge className="gap-1 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50" variant="outline">
+              <Archive className="h-3 w-3" />Komórka lokatorska
+            </Badge>
+          )}
+        </div>
       </Card>
 
       {/* ── TABS ── */}
@@ -298,6 +311,44 @@ export default function MieszkaniePage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* O inwestycji */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-muted-foreground" />O inwestycji
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                {[
+                  { label: 'Deweloper', value: 'EPOL HOLDING Sp. z o.o.' },
+                  { label: 'NIP / KRS', value: '7282749467 / 0000357354' },
+                  { label: 'Siedziba', value: 'ul. Targowa 9A, Łódź' },
+                  { label: 'Budynek', value: 'B1, Segment B' },
+                  { label: 'Kondygnacje nadziemne', value: '6' },
+                  { label: 'Kondygnacje podziemne', value: '2 (garaż)' },
+                  { label: 'Łącznie lokali', value: '288 mieszkań + 5 usługowych' },
+                  { label: 'Miejsca naziemne', value: '24 (w tym 7 dla niepełnosprawnych)' },
+                  { label: 'Start budowy', value: '03.01.2024' },
+                  { label: 'Koniec robót', value: 'do 31.10.2026' },
+                  { label: 'Przeniesienie własności', value: 'do 31.05.2027' },
+                  { label: 'Pozwolenie na budowę', value: 'nr AB.II-S.1.133.2022 (05.04.2022)' },
+                  { label: 'Starosta', value: 'Starosta Krakowski' },
+                  { label: 'Działki', value: '1398/2, 1402/2, 1404/5, 1405/2' },
+                  { label: 'Księga Wieczysta', value: 'KR3I/00024118/6' },
+                  { label: 'Sąd', value: 'SR Wieliczka, Wydział w Skawinie' },
+                  { label: 'Rachunek powierniczy', value: 'ING Bank Śląski S.A. (otwarty)' },
+                  { label: 'Fundusz gwarancyjny', value: 'DFG — pobierany z każdej wpłaty' },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
+                    <div className="font-medium text-sm">{value}</div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -413,18 +464,36 @@ export default function MieszkaniePage() {
         </TabsContent>
 
         {/* ── POMIESZCZENIA ── */}
-        <TabsContent value="rooms">
+        <TabsContent value="rooms" className="space-y-4">
+          {/* Metraż summary */}
+          {form.area > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold">{form.area} m²</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Metraż mieszkania</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold">33,61 m²</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Łącznie balkony</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-2xl font-bold">{form.rooms || '—'}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Pokoje</div>
+              </Card>
+            </div>
+          )}
+
+          {/* Room list */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Notatki do pomieszczeń</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader className="pb-3 flex-row items-center justify-between">
+              <CardTitle className="text-sm">Układ pomieszczeń</CardTitle>
               {editing && (
                 <div className="flex gap-2">
                   <Input
+                    className="h-8 text-sm w-52"
                     value={newRoom}
                     onChange={e => setNewRoom(e.target.value)}
-                    placeholder="Nazwa pomieszczenia (np. Salon, Łazienka)"
+                    placeholder="Nazwa pomieszczenia"
                     onKeyDown={e => e.key === 'Enter' && addRoomNote()}
                   />
                   <Button size="sm" variant="outline" onClick={addRoomNote}>
@@ -432,47 +501,99 @@ export default function MieszkaniePage() {
                   </Button>
                 </div>
               )}
+            </CardHeader>
+            <CardContent className="p-0">
               {Object.keys(form.roomNotes).length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  {editing ? 'Dodaj pomieszczenie powyżej.' : 'Brak notatek. Kliknij Edytuj, aby dodać.'}
-                </p>
+                <p className="text-sm text-muted-foreground italic p-4">Brak danych. Kliknij Edytuj, aby dodać.</p>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {Object.entries(form.roomNotes).map(([room, note]) => (
-                    <div key={room} className="rounded-lg border p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">{room}</span>
-                        {editing && (
-                          <Button
-                            variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive"
-                            onClick={() => {
-                              const updated = { ...form.roomNotes }
-                              delete updated[room]
-                              set('roomNotes', updated)
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                      {editing ? (
-                        <Textarea
-                          rows={3}
-                          value={note}
-                          onChange={e => set('roomNotes', { ...form.roomNotes, [room]: e.target.value })}
-                          placeholder="Wymiary, uwagi, plany..."
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {note || <span className="italic">Brak notatek</span>}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-muted-foreground text-xs">
+                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider">Pomieszczenie</th>
+                      <th className="px-4 py-2 text-right font-semibold uppercase tracking-wider">Metraż / opis</th>
+                      {editing && <th className="w-8" />}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {Object.entries(form.roomNotes).map(([room, note]) => {
+                      const isBalcony = room.toLowerCase().includes('balkon')
+                      return (
+                        <tr key={room} className={cn('hover:bg-muted/20', isBalcony && 'bg-sky-50/40 dark:bg-sky-950/10')}>
+                          <td className="px-4 py-2.5 font-medium">
+                            {room}
+                            {isBalcony && <span className="ml-1.5 text-[10px] text-sky-600 bg-sky-100 rounded px-1 py-0.5">poza metrażem</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {editing ? (
+                              <Input
+                                className="h-7 text-sm text-right w-48 ml-auto"
+                                value={note}
+                                onChange={e => set('roomNotes', { ...form.roomNotes, [room]: e.target.value })}
+                                placeholder="np. 20,50 m²"
+                              />
+                            ) : (
+                              <span className={cn('tabular-nums', isBalcony ? 'text-sky-700' : 'text-foreground font-medium')}>
+                                {note || <span className="text-muted-foreground italic text-xs">—</span>}
+                              </span>
+                            )}
+                          </td>
+                          {editing && (
+                            <td className="px-2">
+                              <Button
+                                variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive"
+                                onClick={() => {
+                                  const updated = { ...form.roomNotes }
+                                  delete updated[room]
+                                  set('roomNotes', updated)
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               )}
             </CardContent>
           </Card>
+
+          {/* Garaż info card */}
+          {purchaseCosts?.some(c => c.category === 'parking') && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Car className="h-4 w-4 text-sky-600" />Garaż podziemny
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Typ</div>
+                    <div className="font-medium">Podziemny</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Kondygnacje</div>
+                    <div className="font-medium">2 (poz. –1, –2)</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Miejsc ogółem</div>
+                    <div className="font-medium">187</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Numer miejsca</div>
+                    <div className="font-medium text-muted-foreground italic">do uzupełnienia</div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                  Posadzka betonowa utwardzona i impregnowana. Garaż nieogrzewany. Instalacja detekcji CO i LPG.
+                  Miejsca oznakowane numerami. Wjazd rampą z ul. Feliksa Pachla.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── LINKI I NOTATKI ── */}

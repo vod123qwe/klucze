@@ -82,64 +82,147 @@ async function _seedRealData(tx: KluczeDB) {
   await tx.property.add({
     id: 'main',
     investmentName: 'Moja Skawina',
-    developer: 'Moja Skawina Sp. z o.o.',
+    developer: 'EPOL HOLDING Sp. z o.o.',
     address: 'ul. Feliksa Pachla, Skawina',
-    unitNumber: 'M.48 Segment B',
-    area: 0,
-    rooms: 0,
-    floor: 0,
-    exposure: '',
-    extras: { balcony: false, garden: false, terrace: false },
+    unitNumber: 'M.48, Segment B, Budynek B1',
+    area: 89.91,
+    rooms: 4,
+    floor: 4,
+    exposure: 'N',
+    extras: { balcony: true, garden: false, terrace: false },
     deliveryDate: '2027-05-31',
     buildingStatus: 'under_construction',
     developerStandard:
-      'Stan deweloperski wg standardu Segment A+B. ' +
-      'Ściany: tynk gipsowy. Podłogi: wylewka cementowa. ' +
-      'Okna PVC z nawiewnikami. Drzwi wejściowe antywłamaniowe. ' +
-      'Instalacja elektryczna (gniazdka, włączniki, skrzynka bezpiecznikowa). ' +
-      'Instalacja wod-kan (przygotowanie pod biały montaż). ' +
-      'Centralne ogrzewanie z grzejnikami stalowymi. Wentylacja. ' +
-      'Szczegóły: dokument "Standard wykończenia Moja Skawina Segment A+B".',
+      'KONSTRUKCJA I ŚCIANY: Płyta fundamentowa, stropy monolityczne żelbetowe. ' +
+      'Ściany zewnętrzne żelbetowe/ceramiczne z izolacją BSO (styropian/wełna), tynk silikonowy na zewnątrz. ' +
+      'Ściany działowe wewnątrz lokalu gr. 10 cm z paneli YTONG. ' +
+      'Tynk gipsowy w pokojach i korytarzu; tynk cementowo-wapienny w łazience i WC. ' +
+      'Sufity: tynk gipsowy (pokoje), cementowo-wapienny (łazienki). ' +
+      'Dylatacje tynków pozostawione bez wypełnienia — do uzupełnienia przez nabywcę.\n\n' +
+      'PODŁOGI: Wylewka betonowa surowa (poziom gotowy pod wykończenie).\n\n' +
+      'OKNA I DRZWI BALKONOWE: PCV 3-szybowe (U≤0,9), białe wewnątrz / grafitowe na zewnątrz. ' +
+      'Okucia standardowe, nawiewniki okienne w wybranych oknach. ' +
+      'Balkony parterowe: rolety zewnętrzne antracytowe.\n\n' +
+      'PARAPETY: Zewnętrzne — blacha stalowa ocynkowana malowana proszkowo. ' +
+      'Wewnętrzne — konglomerat (np. Botticino), grubość 3 cm.\n\n' +
+      'DRZWI WEJŚCIOWE DO LOKALU: Pełne, jednoskrzydłowe, antywłamaniowe, atestowane. ' +
+      'Wyposażone w dwa zamki, okleinowane. Numer lokalu na drzwiach lub nad nimi.\n\n' +
+      'DRZWI WEWNĘTRZNE: BRAK — otwory drzwiowe przygotowane do samodzielnego montażu. ' +
+      'Uwaga: należy stosować drzwi z kratkami wentylacyjnymi.\n\n' +
+      'INSTALACJA C.O.: Miejska sieć ciepłownicza → wymiennikownia w piwnicy → grzejniki panelowe ' +
+      'z wbudowanym zestawem termostatycznym. W łazienkach grzejniki drabinkowe. ' +
+      'Indywidualny licznik ciepła.\n\n' +
+      'INSTALACJA WODNO-KANALIZACYJNA: Rury z tworzywa sztucznego (niskoszumowe). ' +
+      'Indywidualne wodomierze zimnej i ciepłej wody. ' +
+      'Podejścia do zmywarki, zlewozmywaka, pralki, WC, umywalki, prysznica/wanny — natynkowo. ' +
+      'C.w.u. z miejskiej sieci ciepłowniczej.\n\n' +
+      'WENTYLACJA: Wywiewna jednorurowa stałociśnieniowa. Nawiew przez nawiewniki okienne. ' +
+      'Kratki wywiewne w kuchni i łazienkach. Piony do okapu kuchennego.\n\n' +
+      'INSTALACJA ELEKTRYCZNA: Wypusty oświetleniowe we wszystkich pomieszczeniach (min. 1 szt.). ' +
+      'Gniazda 230V min. 2 w każdym pomieszczeniu. Zasilanie 3-fazowe do kuchni elektrycznej. ' +
+      'Rozdzielnia w przedpokoju (elektryczna + teletechniczna). ' +
+      'Skrzynka multimedialna. Gniazda nad blatowe (min. 2 podwójne) i pod blatowe (lodówka, zmywarka, okap).\n\n' +
+      'TELETECHNIKA: TV SAT (gniazdo w salonie), RTV, internet RJ45 (salon), ' +
+      'telefon RJ45 (przedpokój), wideodomofon przy drzwiach wejściowych, instalacja dzwonkowa.\n\n' +
+      'BALKONY: Posadzka impregnowana preparatem bezbarwnym. ' +
+      'Balustrady: profile stalowe ocynkowane malowane proszkowo + szkło hartowane bezpieczne (przezierne lub półmatowe). ' +
+      'Oddzielenia między balkonami: rama stalowa + szyba laminowana (folia mleczna). ' +
+      'Wyposażenie: oprawa oświetleniowa + gniazdo 220V na każdym balkonie.\n\n' +
+      'GARAŻ PODZIEMNY: 2 kondygnacje, 187 miejsc (w tym 6 dla niepełnosprawnych). ' +
+      'Posadzka betonowa utwardzona i impregnowana. Garaż nieogrzewany. ' +
+      'Instalacja detekcji CO i LPG. Miejsca oznakowane numerami.\n\n' +
+      'KOMÓRKI LOKATORSKIE: Ściany na poz. -1 z pustaków wapienno-piaskowych, na poz. -2 ażurowe stalowe. ' +
+      'Wentylacja automatyczna (czujka ruchu/światło).\n\n' +
+      'TEREN ZEWNĘTRZNY: Drogi wewnętrzne z kostki betonowej Behaton, chodniki Via Trio Libet. ' +
+      '24 miejsca naziemne (w tym 7 dla niepełnosprawnych). Oświetlenie automatyczne (zmierzchowe). ' +
+      'Zieleń: drzewa kolumnowe, trawniki, ogródki ogrodzone siatką panelową 120 cm. ' +
+      'Stojaki na rowery, ławki, kosze na śmieci.',
     includedInPrice: [
-      'Tynk gipsowy na ścianach',
-      'Wylewka cementowa na podłogach',
-      'Okna PVC z nawiewnikami',
-      'Drzwi wejściowe antywłamaniowe',
-      'Instalacja elektryczna (gniazdka, włączniki, skrzynka)',
-      'Instalacja wod-kan — przygotowanie pod biały montaż',
-      'Centralne ogrzewanie z grzejnikami stalowymi',
-      'Wentylacja',
-      'Parapety wewnętrzne',
+      'Tynki gipsowe (pokoje, korytarz) i cementowo-wapienne (łazienka, WC)',
+      'Wylewka betonowa — posadzka surowa',
+      'Okna PCV 3-szybowe (U≤0,9), białe wewnątrz / grafitowe na zewnątrz, z nawiewnikami',
+      'Drzwi wejściowe antywłamaniowe z 2 zamkami',
+      'Parapety: zewnętrzne blacha, wewnętrzne konglomerat Botticino 3 cm',
+      'Grzejniki panelowe z zaworami termostatycznymi we wszystkich pokojach',
+      'Grzejniki drabinkowe w łazience/WC',
+      'Instalacja elektryczna: wypusty oświetleniowe, gniazda 230V, rozdzielnia, skrzynka multimedialna',
+      'Zasilanie 3-fazowe do kuchni elektrycznej',
+      'Instalacja wod-kan: podejścia pod zlewozmywak, zmywarkę, pralkę, WC, umywalkę, prysznic/wannę',
+      'Indywidualne liczniki: ciepło, zimna woda, ciepła woda',
+      'Wentylacja wywiewna z nawiewnikami okiennymi, pion pod okap kuchenny',
+      'Instalacje teletechniczne: TV SAT, internet RJ45, telefon RJ45, wideodomofon, dzwonek',
+      'Balkony x3 z balustradami stalowymi i szkłem hartowanym, gniazdo + oprawka na każdym',
     ],
     notIncludedInPrice: [
-      'Malowanie i wykończenie ścian',
-      'Podłogi (płytki, panele, parkiet)',
-      'Drzwi wewnętrzne',
-      'Biały montaż łazienki (wanna/prysznic, WC, umywalka)',
-      'Armatura i kafelki łazienki',
-      'Zabudowa kuchenna i AGD',
-      'Oświetlenie',
-      'Meble',
-      'Garaż / miejsce postojowe',
-      'Komórka lokatorska',
+      'Drzwi wewnętrzne — otwory przygotowane, drzwi we własnym zakresie',
+      'Podłogi wykończone (płytki, panele, parkiet)',
+      'Malowanie i dekoracja ścian (i wypełnienie dylatacji tynków)',
+      'Glazura i terakota w łazience/WC',
+      'Biały montaż: wanna/prysznic, WC, umywalka, baterie',
+      'Zabudowa meblowa kuchni, blat, zlewozmywak, AGD',
+      'Oprawy oświetleniowe (tylko wypusty w suficie)',
+      'Zmiany lokatorskie (modyfikacje standardu — umowa odrębna, koszt po stronie nabywcy)',
     ],
     floorPlanImageId: null,
-    roomNotes: {},
+    roomNotes: {
+      'Pokój dzienny + aneks kuchenny': '30,94 m²',
+      'Sypialnia I': '16,35 m²',
+      'Sypialnia II': '13,78 m²',
+      'Sypialnia III': '11,17 m²',
+      'Łazienka': '5,08 m²',
+      'WC': '1,80 m²',
+      'Garderoba': '3,69 m²',
+      'Komunikacja I (korytarz)': '1,87 m²',
+      'Komunikacja II (przedpokój)': '5,23 m²',
+      'Balkon I': '8,19 m² (nie wliczony w metraż mieszkania)',
+      'Balkon II (duży)': '19,96 m² (nie wliczony w metraż mieszkania)',
+      'Balkon III': '5,46 m² (nie wliczony w metraż mieszkania)',
+    },
     links: [
       { label: 'Moja Skawina — strona inwestycji', url: 'https://mojaskawina.pl' },
+      { label: 'EPOL HOLDING — deweloper', url: 'https://epolholding.com' },
     ],
-    notes: 'Segment B. Termin odbioru umowny: do 31.05.2027. Cena: 849 000 zł. Budżet remontowy w kredycie: 130 000 zł.',
+    notes:
+      'Lokal M.48, IV piętro, Segment B, Budynek B1. Ekspozycja: Północ.\n' +
+      'Metraż: 89,91 m² (wg normy PN-ISO 9836:2022-07). Balkony łącznie: 33,61 m².\n' +
+      'Cena lokalu: 849 000 zł (VAT 8% wliczony). Budżet remontowy w kredycie: 130 000 zł.\n' +
+      'Garaż podziemny + komórka lokatorska: ceny do uzupełnienia po podpisaniu UD.\n' +
+      'Termin zakończenia robót: do 31.10.2026. Odbiór: do 31.05.2027.\n' +
+      'Deweloper: EPOL HOLDING Sp. z o.o., ul. Targowa 9A, Łódź. NIP: 7282749467. KRS: 0000357354.\n' +
+      'KW: KR3I/00024118/6 (SR Wieliczka, Wydział w Skawinie). Działki: 1398/2, 1402/2, 1404/5, 1405/2.\n' +
+      'Pozwolenie na budowę: decyzja nr AB.II-S.1.133.2022 z 05.04.2022 r. (Starosta Krakowski).\n' +
+      'Rachunek powierniczy: ING Bank Śląski S.A. (otwarty).',
   })
 
   await tx.purchaseCosts.bulkAdd([
     {
       id: 'cost-1',
-      name: 'Cena mieszkania',
+      name: 'Cena lokalu mieszkalnego M.48',
       category: 'property',
       amount: 849000,
       status: 'confirmed',
       dueDate: null,
-      note: 'Płatna w 4 transzach wg harmonogramu dewelopera.',
+      note: 'Lokal M.48, IV piętro, Segment B. 89,91 m², 4 pokoje, ekspozycja N. VAT 8% wliczony. Płatna w 4 transzach wg harmonogramu dewelopera.',
+      linkedDocumentIds: [],
+    },
+    {
+      id: 'cost-7',
+      name: 'Miejsce postojowe w garażu podziemnym',
+      category: 'parking',
+      amount: 0,
+      status: 'planned',
+      dueDate: null,
+      note: 'Garaż podziemny, 2 kondygnacje, 187 miejsc. Numer miejsca i cena do uzupełnienia po podpisaniu UD. Cena wliczona do całkowitego kosztu zakupu.',
+      linkedDocumentIds: [],
+    },
+    {
+      id: 'cost-8',
+      name: 'Komórka lokatorska',
+      category: 'storage',
+      amount: 0,
+      status: 'planned',
+      dueDate: null,
+      note: 'Komórka lokatorska przynależna do M.48. Numer i cena do uzupełnienia po podpisaniu UD.',
       linkedDocumentIds: [],
     },
     {
@@ -149,17 +232,27 @@ async function _seedRealData(tx: KluczeDB) {
       amount: 0,
       status: 'planned',
       dueDate: null,
-      note: 'Do wyceny u notariusza przed podpisaniem UD.',
+      note: 'Koszty aktu notarialnego dzielone po połowie z deweloperem (wg UD). Koszty UD (przeniesienia własności) i wpisu KW — po stronie nabywcy. Do wyceny u notariusza.',
+      linkedDocumentIds: [],
+    },
+    {
+      id: 'cost-9',
+      name: 'Wpis do Księgi Wieczystej',
+      category: 'court',
+      amount: 0,
+      status: 'planned',
+      dueDate: null,
+      note: 'KW: KR3I/00024118/6, SR Wieliczka, Wydział w Skawinie. Koszt po stronie nabywcy wg UD.',
       linkedDocumentIds: [],
     },
     {
       id: 'cost-6',
-      name: 'Prowizja bankowa',
+      name: 'Prowizja bankowa (Santander)',
       category: 'bank',
       amount: 0,
       status: 'confirmed',
       dueDate: null,
-      note: '0 zł — warunkowo, pod warunkiem utrzymania ubezpieczenia Spokojna Hipoteka przez min. 5 lat.',
+      note: '0 zł warunkowo — pod warunkiem utrzymania ubezpieczenia Spokojna Hipoteka przez min. 5 lat. Formularz KS22562797.',
       linkedDocumentIds: [],
     },
   ])
