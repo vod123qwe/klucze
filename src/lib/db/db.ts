@@ -65,9 +65,9 @@ async function _seedRealData(tx: KluczeDB) {
   await tx.property.add({
     id: 'main',
     investmentName: 'Moja Skawina',
-    developer: 'Moja Skawina',
+    developer: 'Moja Skawina Sp. z o.o.',
     address: 'ul. Feliksa Pachla, Skawina',
-    unitNumber: '',
+    unitNumber: 'M.48 Segment B',
     area: 0,
     rooms: 0,
     floor: 0,
@@ -75,13 +75,43 @@ async function _seedRealData(tx: KluczeDB) {
     extras: { balcony: false, garden: false, terrace: false },
     deliveryDate: '2027-05-31',
     buildingStatus: 'under_construction',
-    developerStandard: 'Standard deweloperski Segment A+B',
-    includedInPrice: [],
-    notIncludedInPrice: [],
+    developerStandard:
+      'Stan deweloperski wg standardu Segment A+B. ' +
+      'Ściany: tynk gipsowy. Podłogi: wylewka cementowa. ' +
+      'Okna PVC z nawiewnikami. Drzwi wejściowe antywłamaniowe. ' +
+      'Instalacja elektryczna (gniazdka, włączniki, skrzynka bezpiecznikowa). ' +
+      'Instalacja wod-kan (przygotowanie pod biały montaż). ' +
+      'Centralne ogrzewanie z grzejnikami stalowymi. Wentylacja. ' +
+      'Szczegóły: dokument "Standard wykończenia Moja Skawina Segment A+B".',
+    includedInPrice: [
+      'Tynk gipsowy na ścianach',
+      'Wylewka cementowa na podłogach',
+      'Okna PVC z nawiewnikami',
+      'Drzwi wejściowe antywłamaniowe',
+      'Instalacja elektryczna (gniazdka, włączniki, skrzynka)',
+      'Instalacja wod-kan — przygotowanie pod biały montaż',
+      'Centralne ogrzewanie z grzejnikami stalowymi',
+      'Wentylacja',
+      'Parapety wewnętrzne',
+    ],
+    notIncludedInPrice: [
+      'Malowanie i wykończenie ścian',
+      'Podłogi (płytki, panele, parkiet)',
+      'Drzwi wewnętrzne',
+      'Biały montaż łazienki (wanna/prysznic, WC, umywalka)',
+      'Armatura i kafelki łazienki',
+      'Zabudowa kuchenna i AGD',
+      'Oświetlenie',
+      'Meble',
+      'Garaż / miejsce postojowe',
+      'Komórka lokatorska',
+    ],
     floorPlanImageId: null,
     roomNotes: {},
-    links: [],
-    notes: 'Termin odbioru: do 31.05.2027. Segment B. Cena: 849 000 zł.',
+    links: [
+      { label: 'Moja Skawina — strona inwestycji', url: 'https://mojaskawina.pl' },
+    ],
+    notes: 'Segment B. Termin odbioru umowny: do 31.05.2027. Cena: 849 000 zł. Budżet remontowy w kredycie: 130 000 zł.',
   })
 
   await tx.purchaseCosts.bulkAdd([
