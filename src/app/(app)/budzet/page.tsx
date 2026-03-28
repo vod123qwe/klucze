@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, CopyPlus } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
@@ -39,24 +39,11 @@ const EXPENSE_CATEGORIES = [
 
 const CATEGORY_ORDER = EXPENSE_CATEGORIES
 
-// ─── Inline amount editor ──────────────────────────────────────────────────────
+// ─── Inline editors ───────────────────────────────────────────────────────────
 
-function InlineAmount({
-  value,
-  onSave,
-  className,
-}: {
-  value: number
-  onSave: (v: number) => Promise<void>
-  className?: string
-}) {
+function InlineAmount({ value, onSave, className }: { value: number; onSave: (v: number) => Promise<void>; className?: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-
-  function start() {
-    setDraft(String(value))
-    setEditing(true)
-  }
 
   async function commit() {
     const num = parseFloat(draft.replace(',', '.'))
@@ -68,36 +55,58 @@ function InlineAmount({
     return (
       <input
         autoFocus
-        className={cn(
-          'w-24 text-right tabular-nums border-b-2 border-primary bg-transparent outline-none text-sm font-medium',
-          className,
-        )}
+        className={cn('w-24 text-right tabular-nums border-b-2 border-primary bg-transparent outline-none text-sm font-medium', className)}
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => {
-          if (e.key === 'Enter') { e.preventDefault(); commit() }
-          if (e.key === 'Escape') setEditing(false)
-        }}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } if (e.key === 'Escape') setEditing(false) }}
       />
     )
   }
-
   return (
     <button
-      className={cn(
-        'tabular-nums font-medium rounded px-1 -mr-1 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer',
-        className,
-      )}
-      onClick={start}
-      title="Kliknij aby zmienić"
+      className={cn('tabular-nums font-medium rounded px-1 -mr-1 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer', className)}
+      onClick={() => { setDraft(String(value)); setEditing(true) }}
+      title="Kliknij aby zmienić kwotę"
     >
       {formatPLN(value)}
     </button>
   )
 }
 
-// ─── Monthly Overview (Google Sheets style, grouped, inline-editable) ─────────
+function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  async function commit() {
+    if (draft.trim() && draft.trim() !== value) await onSave(draft.trim())
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className="w-full border-b-2 border-primary bg-transparent outline-none text-sm"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } if (e.key === 'Escape') { setDraft(value); setEditing(false) } }}
+      />
+    )
+  }
+  return (
+    <button
+      className="text-left w-full hover:text-primary hover:underline cursor-pointer transition-colors"
+      onClick={() => { setDraft(value); setEditing(true) }}
+      title="Kliknij aby zmienić nazwę"
+    >
+      {value}
+    </button>
+  )
+}
+
+// ─── Monthly Overview ─────────────────────────────────────────────────────────
 
 function MonthlyOverview({
   incomes,
@@ -112,27 +121,26 @@ function MonthlyOverview({
 }) {
   const [month, setMonth] = useState(currentMonth())
 
-  // Drag state: { category, dragId, overId }
-  const [drag, setDrag] = useState<{ category: string; dragId: string; overId: string | null } | null>(null)
-  const dragCounter = useRef(0)
+  // drag: only track ids (cross-category allowed)
+  const [drag, setDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
 
-  const totalIncome = useMemo(() => {
-    return incomes.reduce((s, inc) => {
-      if (inc.frequency === 'monthly') return s + inc.amountNet
-      if (inc.frequency === 'quarterly') return s + inc.amountNet / 3
-      if (inc.frequency === 'annual') return s + inc.amountNet / 12
-      return s
-    }, 0)
-  }, [incomes])
+  // inline add state
+  const [addingIncCategory, setAddingIncCategory] = useState(false)
+  const [addingExpCategory, setAddingExpCategory] = useState<string | null>(null)
+  const [addForm, setAddForm] = useState({ label: '', amount: '' })
 
-  const monthlyExpenses = useMemo(() => {
-    return expenses.filter(
-      e => e.frequency === 'monthly' ||
-        e.frequency === 'quarterly' ||
-        e.frequency === 'annual' ||
-        (e.frequency === 'oneTime' && e.month === month),
-    )
-  }, [expenses, month])
+  // ── computed ──────────────────────────────────────────────────────────────────
+
+  const totalIncome = useMemo(() =>
+    incomes.reduce((s, inc) =>
+      s + (inc.frequency === 'monthly' ? inc.amountNet : inc.frequency === 'quarterly' ? inc.amountNet / 3 : inc.amountNet / 12), 0)
+  , [incomes])
+
+  const monthlyExpenses = useMemo(() =>
+    expenses.filter(e =>
+      e.frequency === 'monthly' || e.frequency === 'quarterly' || e.frequency === 'annual' ||
+      (e.frequency === 'oneTime' && e.month === month))
+  , [expenses, month])
 
   const mortgageLoad = useMemo(() => {
     if (!mortgage || tranches.length === 0) return 0
@@ -146,96 +154,124 @@ function MonthlyOverview({
       if (!map.has(cat)) map.set(cat, [])
       map.get(cat)!.push(exp)
     }
-    // sort items within each group by sortIndex
-    for (const items of map.values()) {
-      items.sort((a, b) => (a.sortIndex ?? 999) - (b.sortIndex ?? 999))
-    }
-    const ordered = CATEGORY_ORDER
-      .filter(c => map.has(c))
-      .map(c => ({ category: c, items: map.get(c)! }))
-    const extra = [...map.entries()]
-      .filter(([c]) => !CATEGORY_ORDER.includes(c))
-      .map(([c, items]) => ({ category: c, items }))
-    return [...ordered, ...extra]
+    for (const items of map.values()) items.sort((a, b) => (a.sortIndex ?? 999) - (b.sortIndex ?? 999))
+    return [
+      ...CATEGORY_ORDER.filter(c => map.has(c)).map(c => ({ category: c, items: map.get(c)! })),
+      ...[...map.entries()].filter(([c]) => !CATEGORY_ORDER.includes(c)).map(([c, items]) => ({ category: c, items })),
+    ]
   }, [monthlyExpenses])
 
-  const totalExpenses = useMemo(() => {
-    return monthlyExpenses.reduce((s, e) => {
-      if (e.frequency === 'monthly') return s + e.amount
-      if (e.frequency === 'quarterly') return s + e.amount / 3
-      if (e.frequency === 'annual') return s + e.amount / 12
-      return s + e.amount
-    }, 0) + mortgageLoad
-  }, [monthlyExpenses, mortgageLoad])
+  const totalExpenses = useMemo(() =>
+    monthlyExpenses.reduce((s, e) =>
+      s + (e.frequency === 'monthly' ? e.amount : e.frequency === 'quarterly' ? e.amount / 3 : e.frequency === 'annual' ? e.amount / 12 : e.amount), 0)
+    + mortgageLoad
+  , [monthlyExpenses, mortgageLoad])
 
   const remainder = totalIncome - totalExpenses
 
   const monthLabel = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long' })
-        .format(new Date(month + '-01'))
-        .replace(/^\w/, c => c.toUpperCase())
-    } catch {
-      return month
-    }
+    try { return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long' }).format(new Date(month + '-01')).replace(/^\w/, c => c.toUpperCase()) }
+    catch { return month }
   }, [month])
 
-  // ── drag handlers ────────────────────────────────────────────────────────────
+  // ── drag handlers (cross-category) ────────────────────────────────────────────
 
-  function handleDragStart(e: React.DragEvent, category: string, id: string) {
+  function onDragStart(e: React.DragEvent, id: string) {
     e.dataTransfer.effectAllowed = 'move'
-    setDrag({ category, dragId: id, overId: null })
+    setDrag({ dragId: id, overId: null })
   }
 
-  function handleDragOver(e: React.DragEvent, category: string, overId: string) {
+  function onDragOver(e: React.DragEvent, overId: string) {
     e.preventDefault()
-    if (drag?.category !== category) return
     setDrag(d => d ? { ...d, overId } : d)
   }
 
-  async function handleDrop(e: React.DragEvent, category: string, items: HouseholdExpense[]) {
+  async function onDrop(e: React.DragEvent, overId: string, overCategory: string) {
     e.preventDefault()
-    if (!drag || drag.category !== category || !drag.overId) { setDrag(null); return }
-    const { dragId, overId } = drag
-    if (dragId === overId) { setDrag(null); return }
+    if (!drag || !drag.dragId || drag.dragId === overId) { setDrag(null); return }
+    const { dragId } = drag
 
-    const sorted = [...items]
-    const fromIdx = sorted.findIndex(i => i.id === dragId)
-    const toIdx   = sorted.findIndex(i => i.id === overId)
+    // get all expenses globally sorted
+    const all = await db.householdExpenses.toArray()
+    all.sort((a, b) => (a.sortIndex ?? 999) - (b.sortIndex ?? 999))
+    const fromIdx = all.findIndex(i => i.id === dragId)
+    const toIdx   = all.findIndex(i => i.id === overId)
     if (fromIdx === -1 || toIdx === -1) { setDrag(null); return }
 
-    sorted.splice(fromIdx, 1)
-    sorted.splice(toIdx, 0, items[fromIdx])
+    const moved = all.splice(fromIdx, 1)[0]
+    all.splice(toIdx, 0, moved)
 
-    // persist new sortIndex values
-    await Promise.all(sorted.map((item, idx) =>
-      db.householdExpenses.update(item.id, { sortIndex: (item.sortIndex ?? 0) - (item.sortIndex ?? 0) + idx + Math.min(...items.map(i => i.sortIndex ?? 0)) })
-    ))
+    await Promise.all(all.map((item, idx) => {
+      const updates: Partial<HouseholdExpense> = { sortIndex: idx }
+      if (item.id === dragId) updates.category = overCategory
+      return db.householdExpenses.update(item.id, updates)
+    }))
     setDrag(null)
   }
 
-  // ── copy handler ─────────────────────────────────────────────────────────────
+  // ── add handlers ──────────────────────────────────────────────────────────────
 
-  async function copyExpense(exp: HouseholdExpense) {
-    const allExp = await db.householdExpenses.toArray()
-    const maxIdx = Math.max(...allExp.map(e => e.sortIndex ?? 0), 0)
-    await db.householdExpenses.add({
-      ...exp,
-      id: generateId(),
-      label: exp.label + ' (kopia)',
-      sortIndex: maxIdx + 1,
+  async function saveAddIncome() {
+    if (!addForm.label.trim()) return
+    const all = await db.householdIncomes.toArray()
+    const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
+    await db.householdIncomes.add({
+      id: generateId(), label: addForm.label.trim(), person: 'other',
+      amountNet: parseFloat(addForm.amount.replace(',', '.')) || 0,
+      frequency: 'monthly', activeFrom: currentMonth(), activeTo: null, sortIndex: maxIdx + 1,
     })
-    toast.success('Skopiowano')
+    setAddForm({ label: '', amount: '' }); setAddingIncCategory(false)
+    toast.success('Dodano przychód')
+  }
+
+  async function saveAddExpense(category: string) {
+    if (!addForm.label.trim()) return
+    const all = await db.householdExpenses.toArray()
+    const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
+    await db.householdExpenses.add({
+      id: generateId(), label: addForm.label.trim(), category,
+      amount: parseFloat(addForm.amount.replace(',', '.')) || 0,
+      frequency: 'monthly', month: null, isLiability: false, sortIndex: maxIdx + 1,
+    })
+    setAddForm({ label: '', amount: '' }); setAddingExpCategory(null)
+    toast.success('Dodano wydatek')
+  }
+
+  function AddRow({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
+    return (
+      <tr className="bg-primary/5 border-t border-primary/20">
+        <td className="px-2 w-5" />
+        <td className="py-1.5 pr-1">
+          <input
+            autoFocus
+            className="w-full border-b border-primary bg-transparent outline-none text-sm px-1"
+            placeholder="Nazwa..."
+            value={addForm.label}
+            onChange={e => setAddForm(p => ({ ...p, label: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+          />
+        </td>
+        <td className="py-1.5 px-1 w-28">
+          <input
+            className="w-full border-b border-primary bg-transparent outline-none text-sm text-right px-1 tabular-nums"
+            placeholder="0 zł"
+            value={addForm.amount}
+            onChange={e => setAddForm(p => ({ ...p, amount: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+          />
+        </td>
+        <td className="px-1 w-7">
+          <button className="text-muted-foreground hover:text-destructive" onClick={onCancel} title="Anuluj">✕</button>
+        </td>
+      </tr>
+    )
   }
 
   if (incomes.length === 0 && expenses.length === 0) {
-    return (
-      <SectionEmptyState
-        title="Brak danych budżetowych"
-        description="Dodaj przychody i wydatki w zakładkach poniżej"
-      />
-    )
+    return <SectionEmptyState title="Brak danych budżetowych" description="Dodaj przychody i wydatki w zakładkach poniżej" />
   }
+
+  const sortedIncomes = [...incomes].sort((a, b) => (a.sortIndex ?? 99) - (b.sortIndex ?? 99))
 
   return (
     <div className="space-y-4">
@@ -250,137 +286,146 @@ function MonthlyOverview({
         </Button>
       </div>
 
-      {/* Two-column table */}
       <div className="grid grid-cols-2 gap-4 items-start">
-        {/* Przychody */}
+
+        {/* ── Przychody ── */}
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white">Przychody</div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              {[...incomes].sort((a, b) => (a.sortIndex ?? 99) - (b.sortIndex ?? 99)).map(inc => (
+              {sortedIncomes.map(inc => (
                 <tr key={inc.id} className="group hover:bg-muted/30">
-                  <td className="px-2 py-2 text-muted-foreground/30 w-5 cursor-default">
-                    <GripVertical className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/30 group-hover:text-muted-foreground/60">
+                    <GripVertical className="h-3.5 w-3.5" />
                   </td>
-                  <td className="py-2.5 text-foreground">{inc.label}</td>
+                  <td className="py-2.5 pr-2">
+                    <InlineLabel
+                      value={inc.label}
+                      onSave={async v => { await db.householdIncomes.update(inc.id, { label: v }) }}
+                    />
+                  </td>
                   <td className="px-2 py-2.5 text-right">
                     <InlineAmount
                       value={inc.amountNet}
                       onSave={async v => { await db.householdIncomes.update(inc.id, { amountNet: v }) }}
-                      className="text-foreground"
                     />
                   </td>
                   <td className="px-2 py-2 w-7">
                     <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                      title="Kopiuj i dodaj"
-                      onClick={async () => {
-                        const allInc = await db.householdIncomes.toArray()
-                        const maxIdx = Math.max(...allInc.map(e => e.sortIndex ?? 0), 0)
-                        await db.householdIncomes.add({ ...inc, id: generateId(), label: inc.label + ' (kopia)', sortIndex: maxIdx + 1 })
-                        toast.success('Skopiowano')
-                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      title="Usuń"
+                      onClick={async () => { await db.householdIncomes.delete(inc.id); toast.success('Usunięto') }}
                     >
-                      <CopyPlus className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </td>
                 </tr>
               ))}
+              {/* Add row */}
+              {addingIncCategory ? (
+                <AddRow onSave={saveAddIncome} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }} />
+              ) : (
+                <tr
+                  className="cursor-pointer hover:bg-muted/30 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
+                >
+                  <td className="px-2 py-2 w-5"><Plus className="h-3.5 w-3.5" /></td>
+                  <td colSpan={3} className="py-2 text-xs">Dodaj przychód...</td>
+                </tr>
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
                 <td colSpan={2} className="px-4 py-2.5 font-bold text-sm">SUMA</td>
-                <td colSpan={2} className="px-4 py-2.5 text-right font-bold text-emerald-600 tabular-nums">
-                  {formatPLN(totalIncome)}
-                </td>
+                <td colSpan={2} className="px-4 py-2.5 text-right font-bold text-emerald-600 tabular-nums">{formatPLN(totalIncome)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        {/* Wydatki — grouped by category, draggable within group */}
+        {/* ── Wydatki ── */}
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white">Wydatki</div>
           <table className="w-full text-sm">
             <tbody>
               {grouped.map(({ category, items }) => (
                 <>
-                  {/* Category header */}
                   <tr key={`cat-${category}`} className="bg-muted/60">
-                    <td
-                      colSpan={4}
-                      className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
-                    >
+                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {category}
                     </td>
                   </tr>
-                  {/* Items */}
                   {items.map(exp => {
-                    const amount =
-                      exp.frequency === 'quarterly' ? exp.amount / 3
-                      : exp.frequency === 'annual' ? exp.amount / 12
-                      : exp.amount
+                    const amount = exp.frequency === 'quarterly' ? exp.amount / 3 : exp.frequency === 'annual' ? exp.amount / 12 : exp.amount
                     const isDragging = drag?.dragId === exp.id
-                    const isOver = drag?.overId === exp.id && drag.category === category
+                    const isOver    = drag?.overId === exp.id && !isDragging
                     return (
                       <tr
                         key={exp.id}
                         draggable
-                        onDragStart={e => handleDragStart(e, category, exp.id)}
-                        onDragOver={e => handleDragOver(e, category, exp.id)}
-                        onDrop={e => handleDrop(e, category, items)}
+                        onDragStart={e => onDragStart(e, exp.id)}
+                        onDragOver={e => onDragOver(e, exp.id)}
+                        onDrop={e => onDrop(e, exp.id, category)}
                         onDragEnd={() => setDrag(null)}
                         className={cn(
                           'group border-t border-border/50 transition-colors',
                           isDragging ? 'opacity-40 bg-muted/40' : 'hover:bg-muted/30',
-                          isOver && !isDragging ? 'border-t-2 border-t-primary' : '',
+                          isOver ? 'border-t-2 border-t-primary' : '',
                         )}
                       >
-                        <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground">
+                        <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/30 group-hover:text-muted-foreground/60">
                           <GripVertical className="h-3.5 w-3.5" />
                         </td>
-                        <td className="py-2.5 pr-2 text-foreground">{exp.label}</td>
+                        <td className="py-2.5 pr-2">
+                          <InlineLabel
+                            value={exp.label}
+                            onSave={async v => { await db.householdExpenses.update(exp.id, { label: v }) }}
+                          />
+                        </td>
                         <td className="px-2 py-2.5 text-right">
                           <InlineAmount
                             value={amount}
                             onSave={async v => {
-                              const raw =
-                                exp.frequency === 'quarterly' ? v * 3
-                                : exp.frequency === 'annual' ? v * 12
-                                : v
+                              const raw = exp.frequency === 'quarterly' ? v * 3 : exp.frequency === 'annual' ? v * 12 : v
                               await db.householdExpenses.update(exp.id, { amount: raw })
                             }}
-                            className="text-foreground"
                           />
                         </td>
                         <td className="px-2 py-2 w-7">
                           <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                            title="Kopiuj i dodaj"
-                            onClick={() => copyExpense(exp)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                            title="Usuń"
+                            onClick={async () => { await db.householdExpenses.delete(exp.id); toast.success('Usunięto') }}
                           >
-                            <CopyPlus className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </td>
                       </tr>
                     )
                   })}
+                  {/* Add row per category */}
+                  {addingExpCategory === category ? (
+                    <AddRow onSave={() => saveAddExpense(category)} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(null) }} />
+                  ) : (
+                    <tr
+                      className="cursor-pointer hover:bg-muted/30 text-muted-foreground/40 hover:text-muted-foreground transition-colors border-t border-border/30"
+                      onClick={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(category) }}
+                    >
+                      <td className="px-2 py-1.5 w-5"><Plus className="h-3 w-3" /></td>
+                      <td colSpan={3} className="py-1.5 text-xs">Dodaj w {category.toLowerCase()}...</td>
+                    </tr>
+                  )}
                 </>
               ))}
-              {/* Rata kredytu */}
               {mortgageLoad > 0 && (
                 <>
                   <tr className="bg-muted/60">
-                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-                      Kredyt hipoteczny
-                    </td>
+                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">Kredyt hipoteczny</td>
                   </tr>
                   <tr className="border-t border-border/50 bg-amber-50/60 dark:bg-amber-950/20">
                     <td className="w-5 px-2" />
                     <td className="py-2.5 pr-2 text-amber-800 font-medium">Rata kredytu</td>
-                    <td colSpan={2} className="px-2 py-2.5 text-right font-medium text-amber-800 tabular-nums">
-                      {formatPLN(mortgageLoad)}
-                    </td>
+                    <td colSpan={2} className="px-2 py-2.5 text-right font-medium text-amber-800 tabular-nums">{formatPLN(mortgageLoad)}</td>
                   </tr>
                 </>
               )}
@@ -388,33 +433,17 @@ function MonthlyOverview({
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
                 <td colSpan={2} className="px-4 py-2.5 font-bold text-sm">SUMA</td>
-                <td colSpan={2} className="px-4 py-2.5 text-right font-bold tabular-nums">
-                  {formatPLN(totalExpenses)}
-                </td>
+                <td colSpan={2} className="px-4 py-2.5 text-right font-bold tabular-nums">{formatPLN(totalExpenses)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
       </div>
 
-      {/* Remainder banner */}
-      <div
-        className={cn(
-          'rounded-lg border-2 p-5 text-center',
-          remainder >= 0
-            ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700'
-            : 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700',
-        )}
-      >
-        <p className="text-sm text-muted-foreground mb-1 font-medium">
-          Kwota jaka zostaje na pozostałe wydatki
-        </p>
-        <p
-          className={cn(
-            'text-3xl font-bold tabular-nums',
-            remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400',
-          )}
-        >
+      {/* Remainder */}
+      <div className={cn('rounded-lg border-2 p-5 text-center', remainder >= 0 ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700' : 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700')}>
+        <p className="text-sm text-muted-foreground mb-1 font-medium">Kwota jaka zostaje na pozostałe wydatki</p>
+        <p className={cn('text-3xl font-bold tabular-nums', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>
           {formatPLN(remainder)}
         </p>
       </div>
