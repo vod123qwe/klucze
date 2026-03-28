@@ -146,7 +146,7 @@ function InlineAmount({ value, onSave, className }: { value: number; onSave: (v:
   )
 }
 
-function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => Promise<void> }) {
+function InlineLabel({ value, onSave, className }: { value: string; onSave: (v: string) => Promise<void>; className?: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
 
@@ -169,7 +169,7 @@ function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => 
   }
   return (
     <button
-      className="text-left w-full hover:text-primary hover:underline cursor-pointer transition-colors"
+      className={cn('text-left w-full hover:text-primary hover:underline cursor-pointer transition-colors', className)}
       onClick={() => { setDraft(value); setEditing(true) }}
       title="Kliknij aby zmienić nazwę"
     >
@@ -847,7 +847,7 @@ function MonthlyOverview({
                     className="group/cat bg-muted/60 cursor-pointer"
                     onClick={() => setQuickDialog({ mode: 'expense', defaultCategory: category })}
                   >
-                    <td colSpan={3} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
+                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
                       {category}
                     </td>
                     <td className="px-2 py-1.5 w-7 text-right">
@@ -869,6 +869,7 @@ function MonthlyOverview({
                           'group border-t border-border/50 transition-colors',
                           isDragging ? 'opacity-40 bg-muted/40' : 'hover:bg-muted/30',
                           isOver ? 'border-t-2 border-t-primary' : '',
+                          exp.isPaid && 'opacity-50',
                         )}
                       >
                         <td className="px-2 py-2 w-5 text-muted-foreground/20 group-hover:text-muted-foreground/50">
@@ -877,6 +878,7 @@ function MonthlyOverview({
                         <td className="py-2.5 pr-2">
                           <InlineLabel
                             value={exp.label}
+                            className={exp.isPaid ? 'line-through text-muted-foreground' : undefined}
                             onSave={async v => {
                               pushUndo({ type: 'updateExp', id: exp.id, prev: { label: exp.label }, next: { label: v } })
                               await db.householdExpenses.update(exp.id, { label: v })
@@ -890,6 +892,15 @@ function MonthlyOverview({
                               pushUndo({ type: 'updateExp', id: exp.id, prev: { amount: exp.amount }, next: { amount: v } })
                               await db.householdExpenses.update(exp.id, { amount: v })
                             }}
+                          />
+                        </td>
+                        <td className="px-2 py-2 w-8">
+                          <Checkbox
+                            checked={exp.isPaid ?? false}
+                            onCheckedChange={async (val) => {
+                              await db.householdExpenses.update(exp.id, { isPaid: !!val })
+                            }}
+                            aria-label="Opłacone"
                           />
                         </td>
                         <td className="px-2 py-2 w-7">

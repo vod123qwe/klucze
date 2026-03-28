@@ -109,6 +109,7 @@ export interface HouseholdExpense {
   frequency: 'monthly' | 'quarterly' | 'annual' | 'oneTime'
   month: string | null // YYYY-MM for oneTime
   isLiability: boolean
+  isPaid?: boolean
   sortIndex?: number
 }
 

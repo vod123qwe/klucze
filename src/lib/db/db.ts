@@ -166,6 +166,16 @@ class KluczeDB extends Dexie {
         }
       }
     })
+
+    // Version 8 — add isPaid to HouseholdExpense
+    this.version(8).stores({}).upgrade(async tx => {
+      const exps = await tx.table('householdExpenses').toArray()
+      for (const e of exps) {
+        if (e.isPaid === undefined) {
+          await tx.table('householdExpenses').update(e.id, { isPaid: false })
+        }
+      }
+    })
   }
 }
 
