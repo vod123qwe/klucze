@@ -634,6 +634,24 @@ function MonthlyOverview({
 
       {!isLocked && <>
 
+      {/* ── Sticky summary bar ── */}
+      <div className="sticky top-0 z-10 -mx-1 bg-background/95 backdrop-blur pb-2 pt-1">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2.5">
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium uppercase tracking-wide">Przychody</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatPLN(totalIncome)}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/40 px-4 py-2.5">
+            <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">Wydatki</p>
+            <p className="text-lg font-bold tabular-nums">{formatPLN(totalExpenses)}</p>
+          </div>
+          <div className={cn('rounded-lg border px-4 py-2.5', remainder >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800')}>
+            <p className={cn('text-[11px] font-medium uppercase tracking-wide', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>Zostaje</p>
+            <p className={cn('text-lg font-bold tabular-nums', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>{formatPLN(remainder)}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4 items-start">
 
         {/* ── Przychody ── */}
@@ -803,13 +821,6 @@ function MonthlyOverview({
         </div>
       </div>
 
-      {/* Remainder */}
-      <div className={cn('rounded-lg border-2 p-5 text-center', remainder >= 0 ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700' : 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700')}>
-        <p className="text-sm text-muted-foreground mb-1 font-medium">Kwota jaka zostaje na pozostałe wydatki</p>
-        <p className={cn('text-3xl font-bold tabular-nums', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>
-          {formatPLN(remainder)}
-        </p>
-      </div>
       </>}
     </div>
   )
