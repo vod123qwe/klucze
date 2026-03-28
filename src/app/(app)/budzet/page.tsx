@@ -247,11 +247,21 @@ function MonthlyOverview({
   const [addingIncCategory, setAddingIncCategory] = useState(false)
   const [addingExpCategory, setAddingExpCategory] = useState<string | null>(null)
   const [addForm, setAddForm] = useState({ label: '', amount: '' })
-  const [openDialog, setOpenDialog] = useState<'open' | null>(null)
+  const [openDialog, setOpenDialog] = useState(false)
+  const [dupFrom, setDupFrom] = useState<string | null>(null)
 
   const openedMonths = useLiveQuery(() => db.budgetMonths.toArray(), [])
   const base = currentMonth()
   const isLocked = month > base && !(openedMonths?.some(m => m.id === month))
+
+  // Last 3 opened months before the current viewed month (for duplicate picker)
+  const recentOpenedMonths = useMemo(() => {
+    if (!openedMonths) return []
+    return [...openedMonths]
+      .filter(m => m.id < month)
+      .sort((a, b) => b.id.localeCompare(a.id))
+      .slice(0, 3)
+  }, [openedMonths, month])
 
   const canDelete = useMemo(() => {
     // Block deletion of months older than 3 months from today
@@ -275,19 +285,23 @@ function MonthlyOverview({
     toast.success('Rozliczenie zostało usunięte')
   }
 
-  async function openMonth(mode: 'copy' | 'fresh'): Promise<void> {
-    if (mode === 'copy') {
-      const prev = addMonths(month, -1)
-      const prevExp = await db.householdExpenses
-        .filter(e => e.frequency === 'oneTime' && e.month === prev)
-        .toArray()
-      for (const e of prevExp) {
-        await db.householdExpenses.add({ ...e, id: generateId(), month })
-      }
+  async function openFresh() {
+    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
+    setOpenDialog(false)
+    toast.success('Otwarto nowe rozliczenie')
+  }
+
+  async function openWithCopy(fromMonth: string) {
+    const srcExp = await db.householdExpenses
+      .filter(e => e.frequency === 'oneTime' && e.month === fromMonth)
+      .toArray()
+    for (const e of srcExp) {
+      await db.householdExpenses.add({ ...e, id: generateId(), month })
     }
     await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
-    setOpenDialog(null)
-    toast.success(mode === 'copy' ? 'Skopiowano z poprzedniego miesiąca' : 'Otwarto nowe rozliczenie')
+    setOpenDialog(false)
+    setDupFrom(null)
+    toast.success('Skopiowano wydatki')
   }
 
   // ── computed ──────────────────────────────────────────────────────────────────
@@ -454,30 +468,63 @@ function MonthlyOverview({
         <>
           <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 flex flex-col items-center justify-center gap-4 py-16 text-center">
             <p className="text-muted-foreground text-sm">To rozliczenie nie zostało jeszcze otwarte.</p>
-            <Button onClick={() => setOpenDialog('open')}>
+            <Button onClick={() => { setDupFrom(null); setOpenDialog(true) }}>
               Otwórz rozliczenie
             </Button>
           </div>
 
-          <Dialog open={openDialog !== null} onOpenChange={() => setOpenDialog(null)}>
+          <Dialog open={openDialog} onOpenChange={v => { setOpenDialog(v); if (!v) setDupFrom(null) }}>
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Otwórz {monthLabel}</DialogTitle>
               </DialogHeader>
-              <p className="text-sm text-muted-foreground">Skąd mają pochodzić dane do tego miesiąca?</p>
               <div className="flex flex-col gap-2 pt-1">
-                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => openMonth('copy')}>
-                  <div className="text-left">
-                    <div className="font-medium">Skopiuj z poprzedniego miesiąca</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Przenieś jednorazowe wpisy z {addMonths(month, -1)}</div>
-                  </div>
-                </Button>
-                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => openMonth('fresh')}>
+
+                {/* Fresh */}
+                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={openFresh}>
                   <div className="text-left">
                     <div className="font-medium">Zacznij od nowa</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Pusty miesiąc, tylko stałe przychody i wydatki</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Pusta lista — żadnych wpisów z poprzednich miesięcy</div>
                   </div>
                 </Button>
+
+                {/* Duplicate from month */}
+                {recentOpenedMonths.length > 0 && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="px-3 py-2 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Zduplikuj jednorazowe wydatki z:
+                    </div>
+                    {recentOpenedMonths.map(m => {
+                      const label = (() => {
+                        try { return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long' }).format(new Date(m.id + '-01')).replace(/^\w/, c => c.toUpperCase()) }
+                        catch { return m.id }
+                      })()
+                      return (
+                        <button
+                          key={m.id}
+                          className={cn(
+                            'w-full flex items-center justify-between px-3 py-2.5 text-sm border-t border-border/50 hover:bg-muted/30 transition-colors text-left',
+                            dupFrom === m.id ? 'bg-primary/10 font-medium' : ''
+                          )}
+                          onClick={() => setDupFrom(m.id)}
+                        >
+                          <span>{label}</span>
+                          {dupFrom === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </button>
+                      )
+                    })}
+                    <div className="px-3 py-2 border-t border-border/50">
+                      <Button
+                        size="sm" className="w-full"
+                        disabled={!dupFrom}
+                        onClick={() => dupFrom && openWithCopy(dupFrom)}
+                      >
+                        Zduplikuj
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </DialogContent>
           </Dialog>
