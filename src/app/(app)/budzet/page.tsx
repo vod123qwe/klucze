@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { db } from '@/lib/db/db'
-import { generateId, formatPLN, currentMonth, addMonths } from '@/lib/utils/format'
+import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
+import { calcMortgageLoadForMonth } from '@/lib/calculations/mortgage'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { SectionEmptyState } from '@/components/shared/SectionEmptyState'
@@ -17,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { HouseholdIncome, HouseholdExpense } from '@/types'
+import type { HouseholdIncome, HouseholdExpense, Mortgage, MortgageTranche } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -27,13 +28,188 @@ const EXPENSE_CATEGORIES = [
   'Transport',
   'Rachunki',
   'Subskrypcje',
-  'Ubrania',
+  'Dziecko',
   'Zdrowie',
-  'Rozrywka',
   'Kredyty/raty',
-  'Oszczędności',
+  'Firma',
+  'Rozrywka',
   'Inne',
 ]
+
+// ─── Monthly Overview (Google Sheets style) ───────────────────────────────────
+
+function MonthlyOverview({
+  incomes,
+  expenses,
+  mortgage,
+  tranches,
+}: {
+  incomes: HouseholdIncome[]
+  expenses: HouseholdExpense[]
+  mortgage: Mortgage | null
+  tranches: MortgageTranche[]
+}) {
+  const [month, setMonth] = useState(currentMonth())
+
+  const totalIncome = useMemo(() => {
+    return incomes.reduce((s, inc) => {
+      if (inc.frequency === 'monthly') return s + inc.amountNet
+      if (inc.frequency === 'quarterly') return s + inc.amountNet / 3
+      if (inc.frequency === 'annual') return s + inc.amountNet / 12
+      return s
+    }, 0)
+  }, [incomes])
+
+  const monthlyExpenses = useMemo(() => {
+    return expenses.filter(
+      e => e.frequency === 'monthly' ||
+        e.frequency === 'quarterly' ||
+        e.frequency === 'annual' ||
+        (e.frequency === 'oneTime' && e.month === month),
+    )
+  }, [expenses, month])
+
+  const mortgageLoad = useMemo(() => {
+    if (!mortgage || tranches.length === 0) return 0
+    return calcMortgageLoadForMonth(mortgage, tranches, month)
+  }, [mortgage, tranches, month])
+
+  const totalExpenses = useMemo(() => {
+    return monthlyExpenses.reduce((s, e) => {
+      if (e.frequency === 'monthly') return s + e.amount
+      if (e.frequency === 'quarterly') return s + e.amount / 3
+      if (e.frequency === 'annual') return s + e.amount / 12
+      return s + e.amount
+    }, 0) + mortgageLoad
+  }, [monthlyExpenses, mortgageLoad])
+
+  const remainder = totalIncome - totalExpenses
+
+  const monthLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long' })
+        .format(new Date(month + '-01'))
+        .replace(/^\w/, c => c.toUpperCase())
+    } catch {
+      return month
+    }
+  }, [month])
+
+  if (incomes.length === 0 && expenses.length === 0) {
+    return (
+      <SectionEmptyState
+        title="Brak danych budżetowych"
+        description="Dodaj przychody i wydatki w zakładkach poniżej"
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Month navigation */}
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => setMonth(addMonths(month, -1))}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-base font-semibold min-w-[160px] text-center">{monthLabel}</span>
+        <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => setMonth(addMonths(month, 1))}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Two-column table */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Przychody */}
+        <div className="rounded-lg border overflow-hidden">
+          <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white">Przychody</div>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-border">
+              {incomes.map(inc => (
+                <tr key={inc.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-2.5 text-foreground">{inc.label}</td>
+                  <td className="px-4 py-2.5 text-right font-medium tabular-nums">
+                    {formatPLN(inc.amountNet)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-muted/50 border-t-2 border-border">
+                <td className="px-4 py-2.5 font-bold text-sm">SUMA</td>
+                <td className="px-4 py-2.5 text-right font-bold text-emerald-600 tabular-nums">
+                  {formatPLN(totalIncome)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Wydatki */}
+        <div className="rounded-lg border overflow-hidden">
+          <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white">Wydatki</div>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-border">
+              {monthlyExpenses.map(exp => {
+                const amount =
+                  exp.frequency === 'quarterly' ? exp.amount / 3
+                  : exp.frequency === 'annual' ? exp.amount / 12
+                  : exp.amount
+                return (
+                  <tr key={exp.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-2.5 text-foreground">{exp.label}</td>
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums">
+                      {formatPLN(amount)}
+                    </td>
+                  </tr>
+                )
+              })}
+              {mortgageLoad > 0 && (
+                <tr className="bg-amber-50/60 hover:bg-amber-50">
+                  <td className="px-4 py-2.5 text-amber-800 font-medium">Rata kredytu</td>
+                  <td className="px-4 py-2.5 text-right font-medium text-amber-800 tabular-nums">
+                    {formatPLN(mortgageLoad)}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="bg-muted/50 border-t-2 border-border">
+                <td className="px-4 py-2.5 font-bold text-sm">SUMA</td>
+                <td className="px-4 py-2.5 text-right font-bold tabular-nums">
+                  {formatPLN(totalExpenses)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Remainder banner */}
+      <div
+        className={cn(
+          'rounded-lg border-2 p-5 text-center',
+          remainder >= 0
+            ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700'
+            : 'border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700',
+        )}
+      >
+        <p className="text-sm text-muted-foreground mb-1 font-medium">
+          Kwota jaka zostaje na pozostałe wydatki
+        </p>
+        <p
+          className={cn(
+            'text-3xl font-bold tabular-nums',
+            remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400',
+          )}
+        >
+          {formatPLN(remainder)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Income / Expense dialogs ─────────────────────────────────────────────────
 
 function IncomeDialog({ open, onClose, existing }: { open: boolean; onClose: () => void; existing?: HouseholdIncome }) {
   const [form, setForm] = useState<Omit<HouseholdIncome, 'id'>>({
@@ -216,6 +392,8 @@ function SavingsForm() {
   )
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function BudzetPage() {
   const incomes = useLiveQuery(() => db.householdIncomes.toArray(), [])
   const expenses = useLiveQuery(() => db.householdExpenses.toArray(), [])
@@ -309,13 +487,24 @@ export default function BudzetPage() {
         />
       </div>
 
-      <Tabs defaultValue="cashflow">
+      <Tabs defaultValue="overview">
         <TabsList className="mb-4">
-          <TabsTrigger value="cashflow">Projekcja miesiąc/miesiąc</TabsTrigger>
+          <TabsTrigger value="overview">Przegląd miesiąca</TabsTrigger>
+          <TabsTrigger value="cashflow">Projekcja 36 mies.</TabsTrigger>
           <TabsTrigger value="income">Przychody</TabsTrigger>
           <TabsTrigger value="expenses">Wydatki</TabsTrigger>
           <TabsTrigger value="savings">Oszczędności</TabsTrigger>
         </TabsList>
+
+        {/* ── MONTHLY OVERVIEW ── */}
+        <TabsContent value="overview">
+          <MonthlyOverview
+            incomes={incomes ?? []}
+            expenses={expenses ?? []}
+            mortgage={mortgage ?? null}
+            tranches={tranches ?? []}
+          />
+        </TabsContent>
 
         {/* ── CASHFLOW TABLE ── */}
         <TabsContent value="cashflow">
