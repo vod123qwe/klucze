@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X, Lock } from 'lucide-react'
 import { db } from '@/lib/db/db'
@@ -227,6 +227,13 @@ function AddRow({
   )
 }
 
+// ─── Undo/redo types ──────────────────────────────────────────────────────────
+
+type UndoEntry =
+  | { type: 'addExp';    record: HouseholdExpense }
+  | { type: 'delExp';    record: HouseholdExpense }
+  | { type: 'updateExp'; id: string; prev: Partial<HouseholdExpense>; next: Partial<HouseholdExpense> }
+
 // ─── Monthly Overview ─────────────────────────────────────────────────────────
 
 function MonthlyOverview({
@@ -249,6 +256,66 @@ function MonthlyOverview({
   const [addForm, setAddForm] = useState({ label: '', amount: '' })
   const [openDialog, setOpenDialog] = useState(false)
   const [dupFrom, setDupFrom] = useState<string | null>(null)
+
+  const undoStack = useRef<UndoEntry[]>([])
+  const redoStack = useRef<UndoEntry[]>([])
+
+  function pushUndo(entry: UndoEntry) {
+    undoStack.current.push(entry)
+    redoStack.current = []           // new action clears redo
+  }
+
+  const undo = useCallback(async () => {
+    const entry = undoStack.current.pop()
+    if (!entry) { toast('Brak akcji do cofnięcia'); return }
+    if (entry.type === 'addExp') {
+      redoStack.current.push({ type: 'delExp', record: entry.record })
+      await db.householdExpenses.delete(entry.record.id)
+    } else if (entry.type === 'delExp') {
+      redoStack.current.push({ type: 'addExp', record: entry.record })
+      await db.householdExpenses.put(entry.record)
+    } else if (entry.type === 'updateExp') {
+      redoStack.current.push({ type: 'updateExp', id: entry.id, prev: entry.next, next: entry.prev })
+      await db.householdExpenses.update(entry.id, entry.prev)
+    }
+    toast('Cofnięto')
+  }, [])
+
+  const redo = useCallback(async () => {
+    const entry = redoStack.current.pop()
+    if (!entry) { toast('Brak akcji do ponowienia'); return }
+    if (entry.type === 'addExp') {
+      undoStack.current.push({ type: 'delExp', record: entry.record })
+      await db.householdExpenses.put(entry.record)
+    } else if (entry.type === 'delExp') {
+      undoStack.current.push({ type: 'addExp', record: entry.record })
+      await db.householdExpenses.delete(entry.record.id)
+    } else if (entry.type === 'updateExp') {
+      undoStack.current.push({ type: 'updateExp', id: entry.id, prev: entry.next, next: entry.prev })
+      await db.householdExpenses.update(entry.id, entry.prev)
+    }
+    toast('Ponowiono')
+  }, [])
+
+  // Reset add forms when switching months
+  useEffect(() => {
+    setAddingExpCategory(null)
+    setAddingIncCategory(false)
+    setAddForm({ label: '', amount: '' })
+  }, [month])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod) return
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
+      if (e.key === 'z' && e.shiftKey)  { e.preventDefault(); redo() }
+      if (e.key === 'y')                { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   const openedMonths = useLiveQuery(() => db.budgetMonths.toArray(), [])
   const base = currentMonth()
@@ -403,11 +470,13 @@ function MonthlyOverview({
     if (!addForm.label.trim()) return
     const all = await db.householdExpenses.toArray()
     const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
-    await db.householdExpenses.add({
+    const record: HouseholdExpense = {
       id: generateId(), label: addForm.label.trim(), category,
       amount: parseFloat(addForm.amount.replace(',', '.')) || 0,
       frequency: 'oneTime', month, isLiability: false, sortIndex: maxIdx + 1,
-    })
+    }
+    await db.householdExpenses.add(record)
+    pushUndo({ type: 'addExp', record })
     setAddForm({ label: '', amount: '' }); setAddingExpCategory(null)
     toast.success('Dodano wydatek')
   }
@@ -622,20 +691,30 @@ function MonthlyOverview({
                         <td className="py-2.5 pr-2">
                           <InlineLabel
                             value={exp.label}
-                            onSave={async v => { await db.householdExpenses.update(exp.id, { label: v }) }}
+                            onSave={async v => {
+                              pushUndo({ type: 'updateExp', id: exp.id, prev: { label: exp.label }, next: { label: v } })
+                              await db.householdExpenses.update(exp.id, { label: v })
+                            }}
                           />
                         </td>
                         <td className="px-2 py-2.5 text-right">
                           <InlineAmount
                             value={amount}
-                            onSave={async v => { await db.householdExpenses.update(exp.id, { amount: v }) }}
+                            onSave={async v => {
+                              pushUndo({ type: 'updateExp', id: exp.id, prev: { amount: exp.amount }, next: { amount: v } })
+                              await db.householdExpenses.update(exp.id, { amount: v })
+                            }}
                           />
                         </td>
                         <td className="px-2 py-2 w-7">
                           <button
                             className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                             title="Usuń"
-                            onClick={async () => { await db.householdExpenses.delete(exp.id); toast.success('Usunięto') }}
+                            onClick={async () => {
+                              pushUndo({ type: 'delExp', record: exp })
+                              await db.householdExpenses.delete(exp.id)
+                              toast.success('Usunięto')
+                            }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
