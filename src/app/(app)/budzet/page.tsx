@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, CopyPlus } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
@@ -112,6 +112,10 @@ function MonthlyOverview({
 }) {
   const [month, setMonth] = useState(currentMonth())
 
+  // Drag state: { category, dragId, overId }
+  const [drag, setDrag] = useState<{ category: string; dragId: string; overId: string | null } | null>(null)
+  const dragCounter = useRef(0)
+
   const totalIncome = useMemo(() => {
     return incomes.reduce((s, inc) => {
       if (inc.frequency === 'monthly') return s + inc.amountNet
@@ -141,6 +145,10 @@ function MonthlyOverview({
       const cat = exp.category || 'Inne'
       if (!map.has(cat)) map.set(cat, [])
       map.get(cat)!.push(exp)
+    }
+    // sort items within each group by sortIndex
+    for (const items of map.values()) {
+      items.sort((a, b) => (a.sortIndex ?? 999) - (b.sortIndex ?? 999))
     }
     const ordered = CATEGORY_ORDER
       .filter(c => map.has(c))
@@ -172,6 +180,54 @@ function MonthlyOverview({
     }
   }, [month])
 
+  // ── drag handlers ────────────────────────────────────────────────────────────
+
+  function handleDragStart(e: React.DragEvent, category: string, id: string) {
+    e.dataTransfer.effectAllowed = 'move'
+    setDrag({ category, dragId: id, overId: null })
+  }
+
+  function handleDragOver(e: React.DragEvent, category: string, overId: string) {
+    e.preventDefault()
+    if (drag?.category !== category) return
+    setDrag(d => d ? { ...d, overId } : d)
+  }
+
+  async function handleDrop(e: React.DragEvent, category: string, items: HouseholdExpense[]) {
+    e.preventDefault()
+    if (!drag || drag.category !== category || !drag.overId) { setDrag(null); return }
+    const { dragId, overId } = drag
+    if (dragId === overId) { setDrag(null); return }
+
+    const sorted = [...items]
+    const fromIdx = sorted.findIndex(i => i.id === dragId)
+    const toIdx   = sorted.findIndex(i => i.id === overId)
+    if (fromIdx === -1 || toIdx === -1) { setDrag(null); return }
+
+    sorted.splice(fromIdx, 1)
+    sorted.splice(toIdx, 0, items[fromIdx])
+
+    // persist new sortIndex values
+    await Promise.all(sorted.map((item, idx) =>
+      db.householdExpenses.update(item.id, { sortIndex: (item.sortIndex ?? 0) - (item.sortIndex ?? 0) + idx + Math.min(...items.map(i => i.sortIndex ?? 0)) })
+    ))
+    setDrag(null)
+  }
+
+  // ── copy handler ─────────────────────────────────────────────────────────────
+
+  async function copyExpense(exp: HouseholdExpense) {
+    const allExp = await db.householdExpenses.toArray()
+    const maxIdx = Math.max(...allExp.map(e => e.sortIndex ?? 0), 0)
+    await db.householdExpenses.add({
+      ...exp,
+      id: generateId(),
+      label: exp.label + ' (kopia)',
+      sortIndex: maxIdx + 1,
+    })
+    toast.success('Skopiowano')
+  }
+
   if (incomes.length === 0 && expenses.length === 0) {
     return (
       <SectionEmptyState
@@ -201,23 +257,40 @@ function MonthlyOverview({
           <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white">Przychody</div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              {incomes.map(inc => (
+              {[...incomes].sort((a, b) => (a.sortIndex ?? 99) - (b.sortIndex ?? 99)).map(inc => (
                 <tr key={inc.id} className="group hover:bg-muted/30">
-                  <td className="px-4 py-2.5 text-foreground">{inc.label}</td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-2 py-2 text-muted-foreground/30 w-5 cursor-default">
+                    <GripVertical className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </td>
+                  <td className="py-2.5 text-foreground">{inc.label}</td>
+                  <td className="px-2 py-2.5 text-right">
                     <InlineAmount
                       value={inc.amountNet}
                       onSave={async v => { await db.householdIncomes.update(inc.id, { amountNet: v }) }}
                       className="text-foreground"
                     />
                   </td>
+                  <td className="px-2 py-2 w-7">
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                      title="Kopiuj i dodaj"
+                      onClick={async () => {
+                        const allInc = await db.householdIncomes.toArray()
+                        const maxIdx = Math.max(...allInc.map(e => e.sortIndex ?? 0), 0)
+                        await db.householdIncomes.add({ ...inc, id: generateId(), label: inc.label + ' (kopia)', sortIndex: maxIdx + 1 })
+                        toast.success('Skopiowano')
+                      }}
+                    >
+                      <CopyPlus className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
-                <td className="px-4 py-2.5 font-bold text-sm">SUMA</td>
-                <td className="px-4 py-2.5 text-right font-bold text-emerald-600 tabular-nums">
+                <td colSpan={2} className="px-4 py-2.5 font-bold text-sm">SUMA</td>
+                <td colSpan={2} className="px-4 py-2.5 text-right font-bold text-emerald-600 tabular-nums">
                   {formatPLN(totalIncome)}
                 </td>
               </tr>
@@ -225,7 +298,7 @@ function MonthlyOverview({
           </table>
         </div>
 
-        {/* Wydatki — grouped by category */}
+        {/* Wydatki — grouped by category, draggable within group */}
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white">Wydatki</div>
           <table className="w-full text-sm">
@@ -235,7 +308,7 @@ function MonthlyOverview({
                   {/* Category header */}
                   <tr key={`cat-${category}`} className="bg-muted/60">
                     <td
-                      colSpan={2}
+                      colSpan={4}
                       className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
                     >
                       {category}
@@ -247,14 +320,30 @@ function MonthlyOverview({
                       exp.frequency === 'quarterly' ? exp.amount / 3
                       : exp.frequency === 'annual' ? exp.amount / 12
                       : exp.amount
+                    const isDragging = drag?.dragId === exp.id
+                    const isOver = drag?.overId === exp.id && drag.category === category
                     return (
-                      <tr key={exp.id} className="group hover:bg-muted/30 border-t border-border/50">
-                        <td className="px-4 py-2.5 text-foreground pl-5">{exp.label}</td>
-                        <td className="px-4 py-2.5 text-right">
+                      <tr
+                        key={exp.id}
+                        draggable
+                        onDragStart={e => handleDragStart(e, category, exp.id)}
+                        onDragOver={e => handleDragOver(e, category, exp.id)}
+                        onDrop={e => handleDrop(e, category, items)}
+                        onDragEnd={() => setDrag(null)}
+                        className={cn(
+                          'group border-t border-border/50 transition-colors',
+                          isDragging ? 'opacity-40 bg-muted/40' : 'hover:bg-muted/30',
+                          isOver && !isDragging ? 'border-t-2 border-t-primary' : '',
+                        )}
+                      >
+                        <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground">
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </td>
+                        <td className="py-2.5 pr-2 text-foreground">{exp.label}</td>
+                        <td className="px-2 py-2.5 text-right">
                           <InlineAmount
                             value={amount}
                             onSave={async v => {
-                              // jeśli częstotliwość != monthly, przelicz z powrotem na oryginalną kwotę
                               const raw =
                                 exp.frequency === 'quarterly' ? v * 3
                                 : exp.frequency === 'annual' ? v * 12
@@ -263,6 +352,15 @@ function MonthlyOverview({
                             }}
                             className="text-foreground"
                           />
+                        </td>
+                        <td className="px-2 py-2 w-7">
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                            title="Kopiuj i dodaj"
+                            onClick={() => copyExpense(exp)}
+                          >
+                            <CopyPlus className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     )
@@ -273,13 +371,14 @@ function MonthlyOverview({
               {mortgageLoad > 0 && (
                 <>
                   <tr className="bg-muted/60">
-                    <td colSpan={2} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
                       Kredyt hipoteczny
                     </td>
                   </tr>
-                  <tr className="bg-amber-50/60 hover:bg-amber-50 border-t border-border/50 dark:bg-amber-950/20">
-                    <td className="px-4 py-2.5 text-amber-800 font-medium pl-5">Rata kredytu</td>
-                    <td className="px-4 py-2.5 text-right font-medium text-amber-800 tabular-nums">
+                  <tr className="border-t border-border/50 bg-amber-50/60 dark:bg-amber-950/20">
+                    <td className="w-5 px-2" />
+                    <td className="py-2.5 pr-2 text-amber-800 font-medium">Rata kredytu</td>
+                    <td colSpan={2} className="px-2 py-2.5 text-right font-medium text-amber-800 tabular-nums">
                       {formatPLN(mortgageLoad)}
                     </td>
                   </tr>
@@ -288,8 +387,8 @@ function MonthlyOverview({
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
-                <td className="px-4 py-2.5 font-bold text-sm">SUMA</td>
-                <td className="px-4 py-2.5 text-right font-bold tabular-nums">
+                <td colSpan={2} className="px-4 py-2.5 font-bold text-sm">SUMA</td>
+                <td colSpan={2} className="px-4 py-2.5 text-right font-bold tabular-nums">
                   {formatPLN(totalExpenses)}
                 </td>
               </tr>

@@ -91,6 +91,7 @@ export interface HouseholdIncome {
   frequency: 'monthly' | 'quarterly' | 'annual'
   activeFrom: string
   activeTo: string | null
+  sortIndex?: number
 }
 
 export interface HouseholdExpense {
@@ -101,6 +102,7 @@ export interface HouseholdExpense {
   frequency: 'monthly' | 'quarterly' | 'annual' | 'oneTime'
   month: string | null // YYYY-MM for oneTime
   isLiability: boolean
+  sortIndex?: number
 }
 
 // ─── SAVINGS PLAN ─────────────────────────────────────────────────────────────

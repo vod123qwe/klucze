@@ -50,6 +50,23 @@ class KluczeDB extends Dexie {
 
     // Version 2 — no schema changes, seed handled by seedDefaultData()
     this.version(2).stores({})
+
+    // Version 3 — add sortIndex to incomes and expenses
+    this.version(3).stores({
+      householdIncomes: 'id, person, sortIndex',
+      householdExpenses: 'id, category, frequency, sortIndex',
+    }).upgrade(async tx => {
+      const expTable = tx.table('householdExpenses')
+      const expenses = await expTable.toArray()
+      for (let i = 0; i < expenses.length; i++) {
+        await expTable.update(expenses[i].id, { sortIndex: i })
+      }
+      const incTable = tx.table('householdIncomes')
+      const incomes = await incTable.toArray()
+      for (let i = 0; i < incomes.length; i++) {
+        await incTable.update(incomes[i].id, { sortIndex: i })
+      }
+    })
   }
 }
 
@@ -224,180 +241,28 @@ async function _seedRealData(tx: KluczeDB) {
   ])
 
   await tx.householdIncomes.bulkAdd([
-    {
-      id: 'income-1',
-      label: 'Jarek',
-      person: 'me',
-      amountNet: 25200,
-      frequency: 'monthly',
-      activeFrom: '2026-01-01',
-      activeTo: null,
-    },
-    {
-      id: 'income-2',
-      label: 'Blanka',
-      person: 'partner',
-      amountNet: 5000,
-      frequency: 'monthly',
-      activeFrom: '2026-01-01',
-      activeTo: null,
-    },
-    {
-      id: 'income-3',
-      label: 'Dziecko',
-      person: 'other',
-      amountNet: 800,
-      frequency: 'monthly',
-      activeFrom: '2026-01-01',
-      activeTo: null,
-    },
+    { id: 'income-1', label: 'Jarek', person: 'me', amountNet: 25200, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 0 },
+    { id: 'income-2', label: 'Blanka', person: 'partner', amountNet: 5000, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 1 },
+    { id: 'income-3', label: 'Dziecko', person: 'other', amountNet: 800, frequency: 'monthly', activeFrom: '2026-01-01', activeTo: null, sortIndex: 2 },
   ])
 
   await tx.householdExpenses.bulkAdd([
-    {
-      id: 'exp-1',
-      label: 'Mieszkanie — wynajem',
-      category: 'Mieszkanie (wynajem/czynsz)',
-      amount: 1700,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-2',
-      label: 'Mieszkanie — czynsz',
-      category: 'Mieszkanie (wynajem/czynsz)',
-      amount: 800,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-3',
-      label: 'Orange — Telefon / internet',
-      category: 'Rachunki',
-      amount: 250,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-4',
-      label: 'Netflix',
-      category: 'Subskrypcje',
-      amount: 43,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-5',
-      label: 'Disney+',
-      category: 'Subskrypcje',
-      amount: 30,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-6',
-      label: 'Przedszkole',
-      category: 'Dziecko',
-      amount: 600,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-7',
-      label: 'Rata — Telefon',
-      category: 'Kredyty/raty',
-      amount: 580,
-      frequency: 'monthly',
-      month: null,
-      isLiability: true,
-    },
-    {
-      id: 'exp-8',
-      label: 'Rata — Leczenie',
-      category: 'Kredyty/raty',
-      amount: 1250,
-      frequency: 'monthly',
-      month: null,
-      isLiability: true,
-    },
-    {
-      id: 'exp-9',
-      label: 'Księgowość',
-      category: 'Firma',
-      amount: 250,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-10',
-      label: 'ZUS',
-      category: 'Firma',
-      amount: 2757,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-11',
-      label: 'PIT 28',
-      category: 'Firma',
-      amount: 2361,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-12',
-      label: 'VAT 7',
-      category: 'Firma',
-      amount: 4715,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-13',
-      label: 'Ubezpieczenie na życie (Spokojna Hipoteka)',
-      category: 'Bank i ubezpieczenia',
-      amount: 308.39,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-14',
-      label: 'Ubezpieczenie nieruchomości (Locum Comfort)',
-      category: 'Bank i ubezpieczenia',
-      amount: 82,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-15',
-      label: 'Konto osobiste Santander',
-      category: 'Bank i ubezpieczenia',
-      amount: 6,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
-    {
-      id: 'exp-16',
-      label: 'Karta Visa Silver (Santander)',
-      category: 'Bank i ubezpieczenia',
-      amount: 7.50,
-      frequency: 'monthly',
-      month: null,
-      isLiability: false,
-    },
+    { id: 'exp-1',  label: 'Wynajem mieszkania',                         category: 'Mieszkanie (wynajem/czynsz)', amount: 1700,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 0 },
+    { id: 'exp-2',  label: 'Czynsz administracyjny',                     category: 'Mieszkanie (wynajem/czynsz)', amount: 800,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 1 },
+    { id: 'exp-13', label: 'Ubezpieczenie na życie (Spokojna Hipoteka)', category: 'Bank i ubezpieczenia',        amount: 308.39, frequency: 'monthly', month: null, isLiability: false, sortIndex: 2 },
+    { id: 'exp-14', label: 'Ubezpieczenie nieruchomości (Locum Comfort)',category: 'Bank i ubezpieczenia',        amount: 82,     frequency: 'monthly', month: null, isLiability: false, sortIndex: 3 },
+    { id: 'exp-15', label: 'Konto osobiste Santander',                   category: 'Bank i ubezpieczenia',        amount: 6,      frequency: 'monthly', month: null, isLiability: false, sortIndex: 4 },
+    { id: 'exp-16', label: 'Karta Visa Silver (Santander)',               category: 'Bank i ubezpieczenia',        amount: 7.50,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 5 },
+    { id: 'exp-7',  label: 'Rata — Telefon',                             category: 'Kredyty/raty',                amount: 580,    frequency: 'monthly', month: null, isLiability: true,  sortIndex: 6 },
+    { id: 'exp-8',  label: 'Rata — Leczenie',                            category: 'Kredyty/raty',                amount: 1250,   frequency: 'monthly', month: null, isLiability: true,  sortIndex: 7 },
+    { id: 'exp-9',  label: 'Księgowość',                                 category: 'Firma',                       amount: 250,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 8 },
+    { id: 'exp-10', label: 'ZUS',                                        category: 'Firma',                       amount: 2757,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 9 },
+    { id: 'exp-11', label: 'PIT 28',                                     category: 'Firma',                       amount: 2361,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 10 },
+    { id: 'exp-12', label: 'VAT 7',                                      category: 'Firma',                       amount: 4715,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 11 },
+    { id: 'exp-3',  label: 'Orange — telefon i internet',                category: 'Rachunki',                    amount: 250,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 12 },
+    { id: 'exp-4',  label: 'Netflix',                                    category: 'Subskrypcje',                 amount: 43,     frequency: 'monthly', month: null, isLiability: false, sortIndex: 13 },
+    { id: 'exp-5',  label: 'Disney+',                                    category: 'Subskrypcje',                 amount: 30,     frequency: 'monthly', month: null, isLiability: false, sortIndex: 14 },
+    { id: 'exp-6',  label: 'Przedszkole',                                category: 'Dziecko',                     amount: 600,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 15 },
   ])
 
   await tx.savingsPlan.add({
