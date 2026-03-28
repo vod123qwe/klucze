@@ -6,7 +6,7 @@ import { Hammer } from 'lucide-react'
 
 export default function WykonczeniePage() {
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Wykończenie"
         description="Plan i budżet wykończenia mieszkania — dostępne w Etapie 2"

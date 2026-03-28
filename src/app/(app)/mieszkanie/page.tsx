@@ -118,7 +118,7 @@ export default function MieszkaniePage() {
   const pricePerM2 = form.area > 0 ? Math.round(purchasePrice / form.area) : null
 
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Mieszkanie"
         description="Dane nieruchomości, standard i notatki"

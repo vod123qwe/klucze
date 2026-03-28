@@ -120,7 +120,7 @@ export default function ChecklistaPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-3xl">
+    <div className="px-6 py-5 mx-auto max-w-3xl">
       <PageHeader
         title="Checklista"
         description={totalCount > 0 ? `${doneCount} z ${totalCount} zadań ukończonych` : 'Zadania pogrupowane etapami'}

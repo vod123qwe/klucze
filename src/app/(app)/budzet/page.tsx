@@ -935,7 +935,7 @@ export default function BudzetPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-5xl">
+    <div className="px-6 py-5 mx-auto max-w-5xl">
       <PageHeader
         title="Budżet domowy"
         description="Przychody, wydatki i projekcja oszczędności miesiąc po miesiącu"

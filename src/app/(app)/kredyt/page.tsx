@@ -290,7 +290,7 @@ export default function KredytPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Kredyt"
         description="Parametry kredytu hipotecznego i harmonogram transz"

@@ -6,7 +6,7 @@ import { Layers } from 'lucide-react'
 
 export default function ScenariuszePage() {
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Scenariusze"
         description="Symulacje finansowe — dostępne w Etapie 2"

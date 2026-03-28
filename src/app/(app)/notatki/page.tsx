@@ -91,7 +91,7 @@ export default function NotatakiPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-3xl">
+    <div className="px-6 py-5 mx-auto max-w-3xl">
       <PageHeader
         title="Notatki i decyzje"
         description="Log ważnych decyzji z kontekstem i uzasadnieniem"

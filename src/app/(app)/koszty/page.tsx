@@ -169,7 +169,7 @@ export default function KosztyPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Koszty zakupu"
         description="Wszystkie koszty związane z zakupem nieruchomości"

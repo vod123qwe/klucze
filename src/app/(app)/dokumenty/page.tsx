@@ -6,7 +6,7 @@ import { FileText } from 'lucide-react'
 
 export default function DokumentyPage() {
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Dokumenty"
         description="Archiwum dokumentów i ofert — dostępne w Etapie 3"

@@ -117,7 +117,7 @@ export default function HarmonogramPage() {
   }
 
   return (
-    <div className="px-6 py-5 max-w-4xl">
+    <div className="px-6 py-5 mx-auto max-w-4xl">
       <PageHeader
         title="Harmonogram"
         description="Oś czasu zdarzeń i harmonogram transz kredytowych"

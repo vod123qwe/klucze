@@ -123,7 +123,7 @@ export default function DashboardPage() {
   const hasData = (incomes?.length ?? 0) > 0 || totalPurchaseCost > 0
 
   return (
-    <div className="px-6 py-5 max-w-5xl">
+    <div className="px-6 py-5 mx-auto max-w-5xl">
       {/* Header */}
       <div className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
