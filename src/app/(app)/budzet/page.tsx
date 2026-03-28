@@ -378,7 +378,13 @@ function MonthlyOverview({
 
         {/* ── Przychody ── */}
         <div className="rounded-lg border overflow-hidden">
-          <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white">Przychody</div>
+          <div
+            className="group/inc px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between cursor-pointer"
+            onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
+          >
+            <span>Przychody</span>
+            <Plus className="h-3.5 w-3.5 opacity-50 group-hover/inc:opacity-100 transition-opacity" />
+          </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
               {sortedIncomes.map(inc => (
@@ -410,16 +416,8 @@ function MonthlyOverview({
                 </tr>
               ))}
               {/* Add row */}
-              {addingIncCategory ? (
+              {addingIncCategory && (
                 <AddRow addForm={addForm} setAddForm={setAddForm} onSave={saveAddIncome} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }} />
-              ) : (
-                <tr
-                  className="cursor-pointer hover:bg-muted/30 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                  onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
-                >
-                  <td className="px-2 py-2 w-5"><Plus className="h-3.5 w-3.5" /></td>
-                  <td colSpan={3} className="py-2 text-xs">Dodaj przychód...</td>
-                </tr>
               )}
             </tbody>
             <tfoot>
@@ -438,9 +436,16 @@ function MonthlyOverview({
             <tbody>
               {grouped.map(({ category, items }) => (
                 <>
-                  <tr key={`cat-${category}`} className="bg-muted/60">
-                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <tr
+                    key={`cat-${category}`}
+                    className="group/cat bg-muted/60 cursor-pointer"
+                    onClick={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(category) }}
+                  >
+                    <td colSpan={3} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
                       {category}
+                    </td>
+                    <td className="px-2 py-1.5 w-7 text-right">
+                      <Plus className="h-3 w-3 text-muted-foreground/0 group-hover/cat:text-muted-foreground/60 transition-colors ml-auto" />
                     </td>
                   </tr>
                   {items.map(exp => {
@@ -492,16 +497,8 @@ function MonthlyOverview({
                     )
                   })}
                   {/* Add row per category */}
-                  {addingExpCategory === category ? (
+                  {addingExpCategory === category && (
                     <AddRow addForm={addForm} setAddForm={setAddForm} onSave={() => saveAddExpense(category)} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(null) }} />
-                  ) : (
-                    <tr
-                      className="cursor-pointer hover:bg-muted/30 text-muted-foreground/40 hover:text-muted-foreground transition-colors border-t border-border/30"
-                      onClick={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(category) }}
-                    >
-                      <td className="px-2 py-1.5 w-5"><Plus className="h-3 w-3" /></td>
-                      <td colSpan={3} className="py-1.5 text-xs">Dodaj w {category.toLowerCase()}...</td>
-                    </tr>
                   )}
                 </>
               ))}
