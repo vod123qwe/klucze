@@ -660,33 +660,25 @@ function MonthlyOverview({
                     const isRecurring = exp.frequency !== 'oneTime'
                     const isDragging = !isRecurring && drag?.dragId === exp.id
                     const isOver    = !isRecurring && drag?.overId === exp.id && !isDragging
-                    return isRecurring ? (
-                      // Read-only recurring row
-                      <tr key={exp.id} className="border-t border-border/50">
-                        <td className="px-2 py-2 w-5 text-muted-foreground/30">
-                          <Lock className="h-3 w-3" />
-                        </td>
-                        <td className="py-2.5 pr-2 text-foreground/60">{exp.label}</td>
-                        <td className="px-2 py-2.5 text-right tabular-nums text-foreground/60">{formatPLN(amount)}</td>
-                        <td className="w-7" />
-                      </tr>
-                    ) : (
-                      // Editable oneTime row
+                    return (
+                      // All expense rows are editable
                       <tr
                         key={exp.id}
-                        draggable
-                        onDragStart={e => onDragStart(e, exp.id)}
-                        onDragOver={e => onDragOver(e, exp.id)}
-                        onDrop={e => onDrop(e, exp.id, category)}
-                        onDragEnd={() => setDrag(null)}
+                        draggable={!isRecurring}
+                        onDragStart={!isRecurring ? e => onDragStart(e, exp.id) : undefined}
+                        onDragOver={!isRecurring ? e => onDragOver(e, exp.id) : undefined}
+                        onDrop={!isRecurring ? e => onDrop(e, exp.id, category) : undefined}
+                        onDragEnd={!isRecurring ? () => setDrag(null) : undefined}
                         className={cn(
                           'group border-t border-border/50 transition-colors',
                           isDragging ? 'opacity-40 bg-muted/40' : 'hover:bg-muted/30',
                           isOver ? 'border-t-2 border-t-primary' : '',
                         )}
                       >
-                        <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/30 group-hover:text-muted-foreground/60">
-                          <GripVertical className="h-3.5 w-3.5" />
+                        <td className="px-2 py-2 w-5 text-muted-foreground/20 group-hover:text-muted-foreground/50">
+                          {isRecurring
+                            ? <span className="text-[9px] font-bold tabular-nums leading-none">∞</span>
+                            : <GripVertical className="h-3.5 w-3.5 cursor-grab active:cursor-grabbing" />}
                         </td>
                         <td className="py-2.5 pr-2">
                           <InlineLabel
