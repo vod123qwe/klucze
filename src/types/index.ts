@@ -88,7 +88,8 @@ export interface HouseholdIncome {
   label: string
   person: 'me' | 'partner' | 'other'
   amountNet: number
-  frequency: 'monthly' | 'quarterly' | 'annual'
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'oneTime'
+  month?: string | null  // YYYY-MM for oneTime
   activeFrom: string
   activeTo: string | null
   sortIndex?: number
