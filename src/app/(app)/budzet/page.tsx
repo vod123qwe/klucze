@@ -245,12 +245,14 @@ function MonthlyOverview({
   mortgage,
   tranches,
   categoryOrder,
+  currentSavings,
 }: {
   incomes: HouseholdIncome[]
   expenses: HouseholdExpense[]
   mortgage: Mortgage | null
   tranches: MortgageTranche[]
   categoryOrder: string[]
+  currentSavings: number
 }) {
   const [month, setMonth] = useState(currentMonth())
   const [drag, setDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
@@ -634,22 +636,17 @@ function MonthlyOverview({
 
       {!isLocked && <>
 
-      {/* ── Sticky summary bar ── */}
-      <div className="sticky top-0 z-10 -mx-1 bg-background/95 backdrop-blur pb-2 pt-1">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2.5">
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium uppercase tracking-wide">Przychody</p>
-            <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatPLN(totalIncome)}</p>
-          </div>
-          <div className="rounded-lg border bg-muted/40 px-4 py-2.5">
-            <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">Wydatki</p>
-            <p className="text-lg font-bold tabular-nums">{formatPLN(totalExpenses)}</p>
-          </div>
-          <div className={cn('rounded-lg border px-4 py-2.5', remainder >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800')}>
-            <p className={cn('text-[11px] font-medium uppercase tracking-wide', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>Zostaje</p>
-            <p className={cn('text-lg font-bold tabular-nums', remainder >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>{formatPLN(remainder)}</p>
-          </div>
-        </div>
+      {/* ── KPI strip (per-month) ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Przychody" value={formatPLN(totalIncome)} trend="up" valueClassName="text-emerald-600" />
+        <KpiCard label="Wydatki" value={formatPLN(totalExpenses)} trend="down" />
+        <KpiCard
+          label="Zostaje"
+          value={formatPLN(remainder)}
+          alert={remainder < 0 ? 'critical' : undefined}
+          valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
+        />
+        <KpiCard label="Oszczędności dziś" value={formatPLN(currentSavings)} valueClassName="text-emerald-600" />
       </div>
 
       <div className="grid grid-cols-2 gap-4 items-start">
@@ -1087,29 +1084,6 @@ export default function BudzetPage() {
         }
       />
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-4">
-        <KpiCard
-          label="Dochód miesięczny"
-          value={formatPLN(totalMonthlyIncome)}
-          accent
-          trend="up"
-        />
-        <KpiCard
-          label="Stałe wydatki"
-          value={formatPLN(totalMonthlyExpenses)}
-          trend="down"
-        />
-        <KpiCard
-          label="Miesięczna nadwyżka"
-          value={formatPLN(totalMonthlyIncome - totalMonthlyExpenses)}
-          alert={(totalMonthlyIncome - totalMonthlyExpenses) < 0 ? 'critical' : undefined}
-        />
-        <KpiCard
-          label="Oszczędności dziś"
-          value={formatPLN(savingsPlan?.currentSavings ?? 0)}
-        />
-      </div>
 
       <Tabs defaultValue="overview">
         <TabsList className="mb-4">
@@ -1128,6 +1102,7 @@ export default function BudzetPage() {
             mortgage={mortgage ?? null}
             tranches={tranches ?? []}
             categoryOrder={categoryNames}
+            currentSavings={savingsPlan?.currentSavings ?? 0}
           />
         </TabsContent>
 

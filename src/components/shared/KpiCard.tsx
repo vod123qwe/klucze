@@ -9,6 +9,7 @@ interface KpiCardProps {
   alert?: 'warning' | 'critical'
   className?: string
   accent?: boolean
+  valueClassName?: string
 }
 
 export function KpiCard({
@@ -19,6 +20,7 @@ export function KpiCard({
   alert,
   className,
   accent = false,
+  valueClassName,
 }: KpiCardProps) {
   return (
     <div
@@ -54,6 +56,7 @@ export function KpiCard({
           'mt-1.5 text-2xl font-semibold tracking-tight',
           alert === 'critical' && 'text-red-600',
           alert === 'warning' && 'text-amber-700',
+          valueClassName,
         )}
         style={{ fontFamily: 'var(--font-heading)' }}
       >
