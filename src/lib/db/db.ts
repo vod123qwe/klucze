@@ -48,10 +48,8 @@ class KluczeDB extends Dexie {
       decisions: 'id, date',
     })
 
-    // Version 2 — seed real data (Moja Skawina)
-    this.version(2).stores({}).upgrade(async tx => {
-      await _seedRealData(tx as unknown as KluczeDB)
-    })
+    // Version 2 — no schema changes, seed handled by seedDefaultData()
+    this.version(2).stores({})
   }
 }
 
@@ -465,17 +463,17 @@ async function _seedRealData(tx: KluczeDB) {
 // ─── PUBLIC SEED (called on app init for truly empty DB) ──────────────────────
 
 export async function seedDefaultData() {
-  const [propCount, planCount, scenarioCount] = await Promise.all([
-    db.property.count(),
-    db.savingsPlan.count(),
-    db.scenarios.count(),
-  ])
-
-  // If version upgrade already seeded everything, skip
-  if (propCount > 0 && planCount > 0 && scenarioCount > 0) return
-
-  // Fallback for first-ever open (before any version upgrade ran)
-  await _seedRealData(db as unknown as KluczeDB)
+  // Wrap in transaction so the count-check + insert is atomic.
+  // This prevents React StrictMode's double-invoke from causing ConstraintError.
+  await db.transaction('rw', [
+    db.property, db.purchaseCosts, db.mortgage, db.mortgageTranches,
+    db.householdIncomes, db.householdExpenses, db.savingsPlan,
+    db.milestones, db.scenarios,
+  ], async () => {
+    const propCount = await db.property.count()
+    if (propCount > 0) return
+    await _seedRealData(db as unknown as KluczeDB)
+  })
 }
 
 // ─── EXPORT / IMPORT ─────────────────────────────────────────────────────────
