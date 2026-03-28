@@ -380,7 +380,7 @@ function MonthlyOverview({
   }
 
   async function openFresh() {
-    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
+    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString(), savedAmount: 0 })
     setOpenDialog(false)
     toast.success('Otwarto nowe rozliczenie')
   }
@@ -398,7 +398,8 @@ function MonthlyOverview({
     for (const i of srcInc) {
       await db.householdIncomes.add({ ...i, id: generateId(), month })
     }
-    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
+    const srcMonth = await db.budgetMonths.get(fromMonth)
+    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString(), savedAmount: srcMonth?.savedAmount ?? 0 })
     setOpenDialog(false)
     setDupFrom(null)
     toast.success('Skopiowano wydatki i przychody')
@@ -441,7 +442,15 @@ function MonthlyOverview({
     monthlyExpenses.reduce((s, e) => s + e.amount, 0) + mortgageLoad
   , [monthlyExpenses, mortgageLoad])
 
-  const remainder = totalIncome - totalExpenses
+  const savedAmount = useMemo(() =>
+    openedMonths?.find(m => m.id === month)?.savedAmount ?? 0
+  , [openedMonths, month])
+
+  async function setSavedAmount(value: number) {
+    await db.budgetMonths.update(month, { savedAmount: value })
+  }
+
+  const remainder = totalIncome - savedAmount - totalExpenses
 
   const monthLabel = useMemo(() => {
     try { return new Intl.DateTimeFormat('pl-PL', { year: 'numeric', month: 'long' }).format(new Date(month + '-01')).replace(/^\w/, c => c.toUpperCase()) }
@@ -636,13 +645,24 @@ function MonthlyOverview({
 
       {!isLocked && <>
 
-      {/* ── Single remainder card ── */}
-      <KpiCard
-        label="Zostaje na życie"
-        value={formatPLN(remainder)}
-        alert={remainder < 0 ? 'critical' : undefined}
-        valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
-      />
+      {/* ── Savings + remainder ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Odkładam w tym miesiącu</p>
+          <InlineAmount
+            value={savedAmount}
+            onSave={setSavedAmount}
+            className="text-2xl font-semibold tracking-tight text-violet-600"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Kliknij aby zmienić kwotę</p>
+        </div>
+        <KpiCard
+          label="Zostaje na życie"
+          value={formatPLN(remainder)}
+          alert={remainder < 0 ? 'critical' : undefined}
+          valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-4 items-start">
 

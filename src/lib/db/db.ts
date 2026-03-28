@@ -156,6 +156,16 @@ class KluczeDB extends Dexie {
         }
       }
     })
+
+    // Version 7 — add savedAmount to BudgetMonth
+    this.version(7).stores({}).upgrade(async tx => {
+      const months = await tx.table('budgetMonths').toArray()
+      for (const m of months) {
+        if (m.savedAmount === undefined) {
+          await tx.table('budgetMonths').update(m.id, { savedAmount: 0 })
+        }
+      }
+    })
   }
 }
 
@@ -459,7 +469,7 @@ async function _seedRealData(tx: KluczeDB) {
   // Seed current month as the first open budget month
   const now = new Date()
   const seedMonthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  await tx.budgetMonths.put({ id: seedMonthId, openedAt: now.toISOString() })
+  await tx.budgetMonths.put({ id: seedMonthId, openedAt: now.toISOString(), savedAmount: 0 })
 
   // Seed oneTime income copies for current month (per-month materialization)
   await tx.householdIncomes.bulkPut([

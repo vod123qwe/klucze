@@ -117,6 +117,7 @@ export interface HouseholdExpense {
 export interface BudgetMonth {
   id: string        // YYYY-MM
   openedAt: string  // ISO datetime
+  savedAmount: number  // ile odkładasz tego miesiąca
 }
 
 // ─── SAVINGS PLAN ─────────────────────────────────────────────────────────────
