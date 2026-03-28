@@ -364,8 +364,8 @@ async function _seedRealData(tx: KluczeDB) {
     },
     {
       id: 'exp-13',
-      label: 'Spokojna Hipoteka (ubezp. życie)',
-      category: 'Kredyty/raty',
+      label: 'Ubezpieczenie na życie (Spokojna Hipoteka)',
+      category: 'Bank i ubezpieczenia',
       amount: 308.39,
       frequency: 'monthly',
       month: null,
@@ -373,8 +373,8 @@ async function _seedRealData(tx: KluczeDB) {
     },
     {
       id: 'exp-14',
-      label: 'Locum Comfort (ubezp. nieruchomości)',
-      category: 'Kredyty/raty',
+      label: 'Ubezpieczenie nieruchomości (Locum Comfort)',
+      category: 'Bank i ubezpieczenia',
       amount: 82,
       frequency: 'monthly',
       month: null,
@@ -382,8 +382,8 @@ async function _seedRealData(tx: KluczeDB) {
     },
     {
       id: 'exp-15',
-      label: 'Konto Santander',
-      category: 'Kredyty/raty',
+      label: 'Konto osobiste Santander',
+      category: 'Bank i ubezpieczenia',
       amount: 6,
       frequency: 'monthly',
       month: null,
@@ -392,7 +392,7 @@ async function _seedRealData(tx: KluczeDB) {
     {
       id: 'exp-16',
       label: 'Karta Visa Silver (Santander)',
-      category: 'Kredyty/raty',
+      category: 'Bank i ubezpieczenia',
       amount: 7.50,
       frequency: 'monthly',
       month: null,

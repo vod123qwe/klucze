@@ -24,19 +24,80 @@ import { cn } from '@/lib/utils'
 
 const EXPENSE_CATEGORIES = [
   'Mieszkanie (wynajem/czynsz)',
-  'Żywność',
-  'Transport',
+  'Bank i ubezpieczenia',
+  'Kredyty/raty',
+  'Firma',
   'Rachunki',
   'Subskrypcje',
   'Dziecko',
   'Zdrowie',
-  'Kredyty/raty',
-  'Firma',
+  'Żywność',
+  'Transport',
   'Rozrywka',
   'Inne',
 ]
 
-// ─── Monthly Overview (Google Sheets style) ───────────────────────────────────
+const CATEGORY_ORDER = EXPENSE_CATEGORIES
+
+// ─── Inline amount editor ──────────────────────────────────────────────────────
+
+function InlineAmount({
+  value,
+  onSave,
+  className,
+}: {
+  value: number
+  onSave: (v: number) => Promise<void>
+  className?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  function start() {
+    setDraft(String(value))
+    setEditing(true)
+  }
+
+  async function commit() {
+    const num = parseFloat(draft.replace(',', '.'))
+    if (!isNaN(num) && num !== value) await onSave(num)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className={cn(
+          'w-24 text-right tabular-nums border-b-2 border-primary bg-transparent outline-none text-sm font-medium',
+          className,
+        )}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); commit() }
+          if (e.key === 'Escape') setEditing(false)
+        }}
+      />
+    )
+  }
+
+  return (
+    <button
+      className={cn(
+        'tabular-nums font-medium rounded px-1 -mr-1 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer',
+        className,
+      )}
+      onClick={start}
+      title="Kliknij aby zmienić"
+    >
+      {formatPLN(value)}
+    </button>
+  )
+}
+
+// ─── Monthly Overview (Google Sheets style, grouped, inline-editable) ─────────
 
 function MonthlyOverview({
   incomes,
@@ -73,6 +134,22 @@ function MonthlyOverview({
     if (!mortgage || tranches.length === 0) return 0
     return calcMortgageLoadForMonth(mortgage, tranches, month)
   }, [mortgage, tranches, month])
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, HouseholdExpense[]>()
+    for (const exp of monthlyExpenses) {
+      const cat = exp.category || 'Inne'
+      if (!map.has(cat)) map.set(cat, [])
+      map.get(cat)!.push(exp)
+    }
+    const ordered = CATEGORY_ORDER
+      .filter(c => map.has(c))
+      .map(c => ({ category: c, items: map.get(c)! }))
+    const extra = [...map.entries()]
+      .filter(([c]) => !CATEGORY_ORDER.includes(c))
+      .map(([c, items]) => ({ category: c, items }))
+    return [...ordered, ...extra]
+  }, [monthlyExpenses])
 
   const totalExpenses = useMemo(() => {
     return monthlyExpenses.reduce((s, e) => {
@@ -118,17 +195,21 @@ function MonthlyOverview({
       </div>
 
       {/* Two-column table */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 items-start">
         {/* Przychody */}
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white">Przychody</div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
               {incomes.map(inc => (
-                <tr key={inc.id} className="hover:bg-muted/30">
+                <tr key={inc.id} className="group hover:bg-muted/30">
                   <td className="px-4 py-2.5 text-foreground">{inc.label}</td>
-                  <td className="px-4 py-2.5 text-right font-medium tabular-nums">
-                    {formatPLN(inc.amountNet)}
+                  <td className="px-4 py-2.5 text-right">
+                    <InlineAmount
+                      value={inc.amountNet}
+                      onSave={async v => { await db.householdIncomes.update(inc.id, { amountNet: v }) }}
+                      className="text-foreground"
+                    />
                   </td>
                 </tr>
               ))}
@@ -144,32 +225,65 @@ function MonthlyOverview({
           </table>
         </div>
 
-        {/* Wydatki */}
+        {/* Wydatki — grouped by category */}
         <div className="rounded-lg border overflow-hidden">
           <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white">Wydatki</div>
           <table className="w-full text-sm">
-            <tbody className="divide-y divide-border">
-              {monthlyExpenses.map(exp => {
-                const amount =
-                  exp.frequency === 'quarterly' ? exp.amount / 3
-                  : exp.frequency === 'annual' ? exp.amount / 12
-                  : exp.amount
-                return (
-                  <tr key={exp.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-2.5 text-foreground">{exp.label}</td>
-                    <td className="px-4 py-2.5 text-right font-medium tabular-nums">
-                      {formatPLN(amount)}
+            <tbody>
+              {grouped.map(({ category, items }) => (
+                <>
+                  {/* Category header */}
+                  <tr key={`cat-${category}`} className="bg-muted/60">
+                    <td
+                      colSpan={2}
+                      className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
+                      {category}
                     </td>
                   </tr>
-                )
-              })}
+                  {/* Items */}
+                  {items.map(exp => {
+                    const amount =
+                      exp.frequency === 'quarterly' ? exp.amount / 3
+                      : exp.frequency === 'annual' ? exp.amount / 12
+                      : exp.amount
+                    return (
+                      <tr key={exp.id} className="group hover:bg-muted/30 border-t border-border/50">
+                        <td className="px-4 py-2.5 text-foreground pl-5">{exp.label}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          <InlineAmount
+                            value={amount}
+                            onSave={async v => {
+                              // jeśli częstotliwość != monthly, przelicz z powrotem na oryginalną kwotę
+                              const raw =
+                                exp.frequency === 'quarterly' ? v * 3
+                                : exp.frequency === 'annual' ? v * 12
+                                : v
+                              await db.householdExpenses.update(exp.id, { amount: raw })
+                            }}
+                            className="text-foreground"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </>
+              ))}
+              {/* Rata kredytu */}
               {mortgageLoad > 0 && (
-                <tr className="bg-amber-50/60 hover:bg-amber-50">
-                  <td className="px-4 py-2.5 text-amber-800 font-medium">Rata kredytu</td>
-                  <td className="px-4 py-2.5 text-right font-medium text-amber-800 tabular-nums">
-                    {formatPLN(mortgageLoad)}
-                  </td>
-                </tr>
+                <>
+                  <tr className="bg-muted/60">
+                    <td colSpan={2} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                      Kredyt hipoteczny
+                    </td>
+                  </tr>
+                  <tr className="bg-amber-50/60 hover:bg-amber-50 border-t border-border/50 dark:bg-amber-950/20">
+                    <td className="px-4 py-2.5 text-amber-800 font-medium pl-5">Rata kredytu</td>
+                    <td className="px-4 py-2.5 text-right font-medium text-amber-800 tabular-nums">
+                      {formatPLN(mortgageLoad)}
+                    </td>
+                  </tr>
+                </>
               )}
             </tbody>
             <tfoot>
