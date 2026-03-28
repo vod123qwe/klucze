@@ -115,36 +115,6 @@ async function _seedRealData(tx: KluczeDB) {
       note: '0 zł — warunkowo, pod warunkiem utrzymania ubezpieczenia Spokojna Hipoteka przez min. 5 lat.',
       linkedDocumentIds: [],
     },
-    {
-      id: 'cost-7',
-      name: 'Wycena nieruchomości (bank)',
-      category: 'bank',
-      amount: 880,
-      status: 'planned',
-      dueDate: null,
-      note: 'Opłata za wycenę zleconą przez Santander. Płatna bezpośrednio rzeczoznawcy przed decyzją kredytową.',
-      linkedDocumentIds: [],
-    },
-    {
-      id: 'cost-8',
-      name: 'Wpis hipoteki — opłata sądowa',
-      category: 'court',
-      amount: 200,
-      status: 'planned',
-      dueDate: null,
-      note: 'Opłata sądowa za wpis hipoteki umownej. Płatna w sądzie wieczystoksięgowym.',
-      linkedDocumentIds: [],
-    },
-    {
-      id: 'cost-9',
-      name: 'Podatek od ustanowienia hipoteki',
-      category: 'other',
-      amount: 19,
-      status: 'planned',
-      dueDate: null,
-      note: 'Podatek PCC od hipoteki. Płatny w urzędzie skarbowym w ciągu 14 dni od złożenia oświadczenia.',
-      linkedDocumentIds: [],
-    },
   ])
 
   await tx.mortgage.add({
