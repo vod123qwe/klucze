@@ -176,6 +176,16 @@ class KluczeDB extends Dexie {
         }
       }
     })
+
+    // Version 9 — add isSavingsWithdrawal to HouseholdExpense
+    this.version(9).stores({}).upgrade(async tx => {
+      const exps = await tx.table('householdExpenses').toArray()
+      for (const e of exps) {
+        if (e.isSavingsWithdrawal === undefined) {
+          await tx.table('householdExpenses').update(e.id, { isSavingsWithdrawal: false })
+        }
+      }
+    })
   }
 }
 

@@ -245,7 +245,7 @@ function QuickAddDialog({
 }: {
   open: boolean
   onClose: () => void
-  mode: 'income' | 'expense'
+  mode: 'income' | 'expense' | 'withdrawal'
   defaultCategory?: string
   categories: string[]
   month: string
@@ -264,16 +264,19 @@ function QuickAddDialog({
   async function save() {
     const amt = parseFloat(amount.replace(',', '.'))
     if (!label.trim() || isNaN(amt) || amt <= 0) return
-    if (mode === 'expense') {
+    if (mode === 'expense' || mode === 'withdrawal') {
       const all = await db.householdExpenses.toArray()
       const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
       const record: HouseholdExpense = {
-        id: generateId(), label: label.trim(), category,
-        amount: amt, frequency: 'oneTime', month, isLiability: false, sortIndex: maxIdx + 1,
+        id: generateId(), label: label.trim(),
+        category: mode === 'withdrawal' ? 'Portfel' : category,
+        amount: amt, frequency: 'oneTime', month, isLiability: false,
+        isSavingsWithdrawal: mode === 'withdrawal',
+        sortIndex: maxIdx + 1,
       }
       await db.householdExpenses.add(record)
       onAddedExp(record)
-      toast.success('Dodano wydatek')
+      toast.success(mode === 'withdrawal' ? 'Dodano wypłatę z portfela' : 'Dodano wydatek')
     } else {
       const all = await db.householdIncomes.toArray()
       const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
@@ -288,13 +291,20 @@ function QuickAddDialog({
     onClose()
   }
 
+  const title = mode === 'withdrawal' ? 'Wypłata z portfela' : mode === 'expense' ? 'Dodaj wydatek' : 'Dodaj przychód'
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{mode === 'expense' ? 'Dodaj wydatek' : 'Dodaj przychód'}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {mode === 'withdrawal' && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Kwota zostanie odjęta z portfela oszczędności, nie z przychodów miesiąca.
+            </p>
+          )}
           {mode === 'expense' && (
             <div>
               <p className="text-xs text-muted-foreground font-medium mb-2">Kategoria</p>
@@ -344,7 +354,7 @@ function QuickAddDialog({
                 autoFocus
                 value={label}
                 onChange={e => setLabel(e.target.value)}
-                placeholder={mode === 'expense' ? 'np. Czynsz' : 'np. Wynagrodzenie'}
+                placeholder={mode === 'withdrawal' ? 'np. Zaliczka kuchnia' : mode === 'expense' ? 'np. Czynsz' : 'np. Wynagrodzenie'}
                 onKeyDown={e => e.key === 'Enter' && save()}
               />
             </div>
@@ -385,7 +395,7 @@ function MonthlyOverview({
 }) {
   const [month, setMonth] = useState(currentMonth())
   const [drag, setDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
-  const [quickDialog, setQuickDialog] = useState<{ mode: 'income' | 'expense'; defaultCategory?: string } | null>(null)
+  const [quickDialog, setQuickDialog] = useState<{ mode: 'income' | 'expense' | 'withdrawal'; defaultCategory?: string } | null>(null)
   const [openDialog, setOpenDialog] = useState(false)
   const [dupFrom, setDupFrom] = useState<string | null>(null)
 
@@ -539,8 +549,16 @@ function MonthlyOverview({
   , [monthlyIncomes])
 
   const monthlyExpenses = useMemo(() =>
-    expenses.filter(e => e.frequency === 'oneTime' && e.month === month)
+    expenses.filter(e => e.frequency === 'oneTime' && e.month === month && !e.isSavingsWithdrawal)
   , [expenses, month])
+
+  const savingsWithdrawals = useMemo(() =>
+    expenses.filter(e => e.frequency === 'oneTime' && e.month === month && e.isSavingsWithdrawal)
+  , [expenses, month])
+
+  const totalWithdrawals = useMemo(() =>
+    savingsWithdrawals.reduce((s, e) => s + e.amount, 0)
+  , [savingsWithdrawals])
 
   const mortgageLoad = useMemo(() => {
     if (!mortgage || tranches.length === 0) return 0
@@ -564,6 +582,15 @@ function MonthlyOverview({
   const totalExpenses = useMemo(() =>
     monthlyExpenses.reduce((s, e) => s + e.amount, 0) + mortgageLoad
   , [monthlyExpenses, mortgageLoad])
+
+  // Wallet = currentSavings + all savedAmounts – all savings withdrawals (global)
+  const walletBalance = useMemo(() => {
+    const deposited = openedMonths?.reduce((s, m) => s + (m.savedAmount ?? 0), 0) ?? 0
+    const allWithdrawals = expenses
+      .filter(e => e.isSavingsWithdrawal)
+      .reduce((s, e) => s + e.amount, 0)
+    return currentSavings + deposited - allWithdrawals
+  }, [currentSavings, openedMonths, expenses])
 
   const savedAmount = useMemo(() =>
     openedMonths?.find(m => m.id === month)?.savedAmount ?? 0
@@ -740,7 +767,7 @@ function MonthlyOverview({
       {!isLocked && <>
 
       {/* ── Savings + remainder ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Odkładam w tym miesiącu</p>
           <InlineAmount
@@ -755,6 +782,12 @@ function MonthlyOverview({
           value={formatPLN(remainder)}
           alert={remainder < 0 ? 'critical' : undefined}
           valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
+        />
+        <KpiCard
+          label="Portfel oszczędności"
+          value={formatPLN(walletBalance)}
+          alert={walletBalance < 0 ? 'critical' : undefined}
+          valueClassName={walletBalance >= 0 ? 'text-amber-600' : undefined}
         />
       </div>
 
@@ -829,6 +862,13 @@ function MonthlyOverview({
             <span>Wydatki</span>
             <div className="flex items-center gap-2">
               <span className="tabular-nums font-medium opacity-80">{formatPLN(totalExpenses)}</span>
+              <button
+                className="rounded-full p-0.5 hover:bg-white/20 transition-colors text-xs font-medium px-1.5"
+                onClick={() => setQuickDialog({ mode: 'withdrawal' })}
+                title="Wypłata z portfela"
+              >
+                Z portfela
+              </button>
               <button
                 className="rounded-full p-0.5 hover:bg-white/20 transition-colors"
                 onClick={() => setQuickDialog({ mode: 'expense' })}
@@ -924,13 +964,54 @@ function MonthlyOverview({
               {mortgageLoad > 0 && (
                 <>
                   <tr className="bg-muted/60">
-                    <td colSpan={4} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">Kredyt hipoteczny</td>
+                    <td colSpan={5} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">Kredyt hipoteczny</td>
                   </tr>
                   <tr className="border-t border-border/50 bg-amber-50/60 dark:bg-amber-950/20">
                     <td className="w-5 px-2" />
                     <td className="py-2.5 pr-2 text-amber-800 font-medium">Rata kredytu</td>
-                    <td colSpan={2} className="px-2 py-2.5 text-right font-medium text-amber-800 tabular-nums">{formatPLN(mortgageLoad)}</td>
+                    <td colSpan={3} className="px-2 py-2.5 text-right font-medium text-amber-800 tabular-nums">{formatPLN(mortgageLoad)}</td>
                   </tr>
+                </>
+              )}
+              {savingsWithdrawals.length > 0 && (
+                <>
+                  <tr className="bg-amber-50/80 dark:bg-amber-950/30">
+                    <td colSpan={5} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">Z portfela oszczędności</td>
+                  </tr>
+                  {savingsWithdrawals.map(exp => (
+                    <tr key={exp.id} className="group border-t border-border/50 bg-amber-50/40 hover:bg-amber-50/70 dark:bg-amber-950/10 transition-colors">
+                      <td className="w-5 px-2" />
+                      <td className="py-2.5 pr-2">
+                        <InlineLabel
+                          value={exp.label}
+                          onSave={async v => {
+                            await db.householdExpenses.update(exp.id, { label: v })
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2.5 text-right">
+                        <InlineAmount
+                          value={exp.amount}
+                          onSave={async v => {
+                            await db.householdExpenses.update(exp.id, { amount: v })
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2 w-8" />
+                      <td className="px-2 py-2 w-7">
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          title="Usuń"
+                          onClick={async () => {
+                            await db.householdExpenses.delete(exp.id)
+                            toast.success('Usunięto')
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </>
               )}
             </tbody>

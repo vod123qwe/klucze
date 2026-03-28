@@ -110,6 +110,7 @@ export interface HouseholdExpense {
   month: string | null // YYYY-MM for oneTime
   isLiability: boolean
   isPaid?: boolean
+  isSavingsWithdrawal?: boolean
   sortIndex?: number
 }
 
