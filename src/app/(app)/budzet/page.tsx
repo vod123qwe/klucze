@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X, Lock } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
@@ -537,47 +537,25 @@ function MonthlyOverview({
 
         {/* ── Przychody ── */}
         <div className="rounded-lg border overflow-hidden">
-          <div
-            className="group/inc px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between cursor-pointer"
-            onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
-          >
+          <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between">
             <span>Przychody</span>
-            <Plus className="h-3.5 w-3.5 opacity-50 group-hover/inc:opacity-100 transition-opacity" />
+            <span className="text-[11px] font-normal opacity-70">tylko do odczytu</span>
           </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              {sortedIncomes.map(inc => (
-                <tr key={inc.id} className="group hover:bg-muted/30">
-                  <td className="px-2 py-2 w-5 cursor-grab active:cursor-grabbing text-muted-foreground/30 group-hover:text-muted-foreground/60">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </td>
-                  <td className="py-2.5 pr-2">
-                    <InlineLabel
-                      value={inc.label}
-                      onSave={async v => { await db.householdIncomes.update(inc.id, { label: v }) }}
-                    />
-                  </td>
-                  <td className="px-2 py-2.5 text-right">
-                    <InlineAmount
-                      value={inc.amountNet}
-                      onSave={async v => { await db.householdIncomes.update(inc.id, { amountNet: v }) }}
-                    />
-                  </td>
-                  <td className="px-2 py-2 w-7">
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      title="Usuń"
-                      onClick={async () => { await db.householdIncomes.delete(inc.id); toast.success('Usunięto') }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {/* Add row */}
-              {addingIncCategory && (
-                <AddRow addForm={addForm} setAddForm={setAddForm} onSave={saveAddIncome} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }} />
-              )}
+              {sortedIncomes.map(inc => {
+                const monthlyAmt = inc.frequency === 'monthly' ? inc.amountNet : inc.frequency === 'quarterly' ? inc.amountNet / 3 : inc.amountNet / 12
+                return (
+                  <tr key={inc.id} className="text-muted-foreground">
+                    <td className="px-2 py-2 w-5 text-muted-foreground/30">
+                      <Lock className="h-3 w-3" />
+                    </td>
+                    <td className="py-2.5 pr-2 text-foreground/70">{inc.label}</td>
+                    <td className="px-2 py-2.5 text-right tabular-nums text-foreground/70">{formatPLN(monthlyAmt)}</td>
+                    <td className="w-7" />
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
@@ -586,6 +564,7 @@ function MonthlyOverview({
               </tr>
             </tfoot>
           </table>
+          <p className="px-4 py-2 text-[11px] text-muted-foreground border-t">Edytuj przychody w zakładce <strong>Przychody</strong></p>
         </div>
 
         {/* ── Wydatki ── */}
@@ -609,9 +588,21 @@ function MonthlyOverview({
                   </tr>
                   {items.map(exp => {
                     const amount = exp.frequency === 'quarterly' ? exp.amount / 3 : exp.frequency === 'annual' ? exp.amount / 12 : exp.amount
-                    const isDragging = drag?.dragId === exp.id
-                    const isOver    = drag?.overId === exp.id && !isDragging
-                    return (
+                    const isRecurring = exp.frequency !== 'oneTime'
+                    const isDragging = !isRecurring && drag?.dragId === exp.id
+                    const isOver    = !isRecurring && drag?.overId === exp.id && !isDragging
+                    return isRecurring ? (
+                      // Read-only recurring row
+                      <tr key={exp.id} className="border-t border-border/50">
+                        <td className="px-2 py-2 w-5 text-muted-foreground/30">
+                          <Lock className="h-3 w-3" />
+                        </td>
+                        <td className="py-2.5 pr-2 text-foreground/60">{exp.label}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums text-foreground/60">{formatPLN(amount)}</td>
+                        <td className="w-7" />
+                      </tr>
+                    ) : (
+                      // Editable oneTime row
                       <tr
                         key={exp.id}
                         draggable
@@ -637,10 +628,7 @@ function MonthlyOverview({
                         <td className="px-2 py-2.5 text-right">
                           <InlineAmount
                             value={amount}
-                            onSave={async v => {
-                              const raw = exp.frequency === 'quarterly' ? v * 3 : exp.frequency === 'annual' ? v * 12 : v
-                              await db.householdExpenses.update(exp.id, { amount: raw })
-                            }}
+                            onSave={async v => { await db.householdExpenses.update(exp.id, { amount: v }) }}
                           />
                         </td>
                         <td className="px-2 py-2 w-7">
