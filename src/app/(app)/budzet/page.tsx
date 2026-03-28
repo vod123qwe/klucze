@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X } from 'lucide-react'
 import { db } from '@/lib/db/db'
@@ -841,7 +841,7 @@ function MonthlyOverview({
           <table className="w-full text-sm">
             <tbody>
               {grouped.map(({ category, items }) => (
-                <>
+                <React.Fragment key={category}>
                   <tr
                     key={`cat-${category}`}
                     className="group/cat bg-muted/60 cursor-pointer"
@@ -908,7 +908,7 @@ function MonthlyOverview({
                       </tr>
                     )
                   })}
-                </>
+                </React.Fragment>
               ))}
               {mortgageLoad > 0 && (
                 <>
