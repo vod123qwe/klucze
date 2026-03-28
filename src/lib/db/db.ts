@@ -7,6 +7,7 @@ import type {
   HouseholdIncome,
   HouseholdExpense,
   ExpenseCategory,
+  BudgetMonth,
   SavingsPlan,
   FitoutItem,
   Scenario,
@@ -39,6 +40,7 @@ class KluczeDB extends Dexie {
   householdIncomes!: EntityTable<HouseholdIncome, 'id'>
   householdExpenses!: EntityTable<HouseholdExpense, 'id'>
   expenseCategories!: EntityTable<ExpenseCategory, 'id'>
+  budgetMonths!: EntityTable<BudgetMonth, 'id'>
   savingsPlan!: EntityTable<SavingsPlan, 'id'>
   fitoutItems!: EntityTable<FitoutItem, 'id'>
   scenarios!: EntityTable<Scenario, 'id'>
@@ -111,6 +113,16 @@ class KluczeDB extends Dexie {
           })
         }
       }
+    })
+
+    // Version 5 — add budgetMonths table; seed current month as open
+    this.version(5).stores({
+      budgetMonths: 'id',
+    }).upgrade(async tx => {
+      const now = new Date().toISOString()
+      const ym = new Date()
+      const monthId = `${ym.getFullYear()}-${String(ym.getMonth() + 1).padStart(2, '0')}`
+      await tx.table('budgetMonths').put({ id: monthId, openedAt: now })
     })
   }
 }
@@ -410,6 +422,11 @@ async function _seedRealData(tx: KluczeDB) {
   await tx.expenseCategories.bulkAdd(
     DEFAULT_CATEGORIES.map((name, i) => ({ id: name, name, sortIndex: i }))
   )
+
+  // Seed current month as the first open budget month
+  const now = new Date()
+  const seedMonthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  await tx.budgetMonths.add({ id: seedMonthId, openedAt: now.toISOString() })
 
   await tx.savingsPlan.add({
     id: 'main',

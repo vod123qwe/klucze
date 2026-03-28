@@ -111,6 +111,13 @@ export interface HouseholdExpense {
   sortIndex?: number
 }
 
+// ─── BUDGET MONTH ─────────────────────────────────────────────────────────────
+
+export interface BudgetMonth {
+  id: string        // YYYY-MM
+  openedAt: string  // ISO datetime
+}
+
 // ─── SAVINGS PLAN ─────────────────────────────────────────────────────────────
 
 export interface SavingsPlan {

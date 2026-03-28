@@ -247,6 +247,27 @@ function MonthlyOverview({
   const [addingIncCategory, setAddingIncCategory] = useState(false)
   const [addingExpCategory, setAddingExpCategory] = useState<string | null>(null)
   const [addForm, setAddForm] = useState({ label: '', amount: '' })
+  const [openDialog, setOpenDialog] = useState<'open' | null>(null)
+
+  const openedMonths = useLiveQuery(() => db.budgetMonths.toArray(), [])
+  const base = currentMonth()
+  const isLocked = month > base && !(openedMonths?.some(m => m.id === month))
+
+  async function openMonth(mode: 'copy' | 'fresh'): Promise<void> {
+    if (mode === 'copy') {
+      const prev = addMonths(month, -1)
+      const prevExp = await db.householdExpenses
+        .filter(e => e.frequency === 'oneTime' && e.month === prev)
+        .toArray()
+      for (const e of prevExp) {
+        await db.householdExpenses.add({ ...e, id: generateId(), month })
+      }
+    }
+    await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
+    setOpenDialog(null)
+    toast.success(mode === 'copy' ? 'Skopiowano z poprzedniego miesiąca' : 'Otwarto nowe rozliczenie')
+  }
+
   // ── computed ──────────────────────────────────────────────────────────────────
 
   const totalIncome = useMemo(() =>
@@ -365,7 +386,11 @@ function MonthlyOverview({
     <div className="space-y-4">
       {/* Month navigation */}
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => setMonth(addMonths(month, -1))}>
+        <Button
+          size="sm" variant="outline" className="h-8 w-8 p-0"
+          disabled={month <= base}
+          onClick={() => setMonth(addMonths(month, -1))}
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <span className="text-base font-semibold min-w-[160px] text-center">{monthLabel}</span>
@@ -373,6 +398,43 @@ function MonthlyOverview({
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* ── Locked month screen ── */}
+      {isLocked && (
+        <>
+          <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <p className="text-muted-foreground text-sm">To rozliczenie nie zostało jeszcze otwarte.</p>
+            <Button onClick={() => setOpenDialog('open')}>
+              Otwórz rozliczenie
+            </Button>
+          </div>
+
+          <Dialog open={openDialog !== null} onOpenChange={() => setOpenDialog(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Otwórz {monthLabel}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">Skąd mają pochodzić dane do tego miesiąca?</p>
+              <div className="flex flex-col gap-2 pt-1">
+                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => openMonth('copy')}>
+                  <div className="text-left">
+                    <div className="font-medium">Skopiuj z poprzedniego miesiąca</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Przenieś jednorazowe wpisy z {addMonths(month, -1)}</div>
+                  </div>
+                </Button>
+                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => openMonth('fresh')}>
+                  <div className="text-left">
+                    <div className="font-medium">Zacznij od nowa</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Pusty miesiąc, tylko stałe przychody i wydatki</div>
+                  </div>
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+      {!isLocked && <>
 
       <div className="grid grid-cols-2 gap-4 items-start">
 
@@ -532,6 +594,7 @@ function MonthlyOverview({
           {formatPLN(remainder)}
         </p>
       </div>
+      </>}
     </div>
   )
 }
