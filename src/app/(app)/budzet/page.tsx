@@ -349,7 +349,7 @@ function MonthlyOverview({
     await db.householdExpenses.add({
       id: generateId(), label: addForm.label.trim(), category,
       amount: parseFloat(addForm.amount.replace(',', '.')) || 0,
-      frequency: 'monthly', month: null, isLiability: false, sortIndex: maxIdx + 1,
+      frequency: 'oneTime', month, isLiability: false, sortIndex: maxIdx + 1,
     })
     setAddForm({ label: '', amount: '' }); setAddingExpCategory(null)
     toast.success('Dodano wydatek')
