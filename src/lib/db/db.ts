@@ -124,6 +124,38 @@ class KluczeDB extends Dexie {
       const monthId = `${ym.getFullYear()}-${String(ym.getMonth() + 1).padStart(2, '0')}`
       await tx.table('budgetMonths').put({ id: monthId, openedAt: now })
     })
+
+    // Version 6 — index month on incomes; materialize recurring entries for base month
+    this.version(6).stores({
+      householdIncomes: 'id, person, sortIndex, month',
+    }).upgrade(async tx => {
+      const ym = new Date()
+      const baseMonth = `${ym.getFullYear()}-${String(ym.getMonth() + 1).padStart(2, '0')}`
+      const expTable = tx.table('householdExpenses')
+      const incTable = tx.table('householdIncomes')
+
+      // Materialize recurring expenses → oneTime for base month
+      const allExp = await expTable.toArray()
+      const baseHasExp = allExp.some((e: HouseholdExpense) => e.frequency === 'oneTime' && e.month === baseMonth)
+      if (!baseHasExp) {
+        const recurring = allExp.filter((e: HouseholdExpense) => e.frequency !== 'oneTime')
+        for (const e of recurring) {
+          const amount = e.frequency === 'quarterly' ? e.amount / 3 : e.frequency === 'annual' ? e.amount / 12 : e.amount
+          await expTable.put({ ...e, id: `${e.id}-m${baseMonth}`, frequency: 'oneTime', month: baseMonth, amount })
+        }
+      }
+
+      // Materialize recurring incomes → oneTime for base month
+      const allInc = await incTable.toArray()
+      const baseHasInc = allInc.some((i: HouseholdIncome) => i.frequency === 'oneTime' && i.month === baseMonth)
+      if (!baseHasInc) {
+        const recurringInc = allInc.filter((i: HouseholdIncome) => i.frequency !== 'oneTime')
+        for (const inc of recurringInc) {
+          const amountNet = inc.frequency === 'quarterly' ? inc.amountNet / 3 : inc.frequency === 'annual' ? inc.amountNet / 12 : inc.amountNet
+          await incTable.put({ ...inc, id: `${inc.id}-m${baseMonth}`, frequency: 'oneTime', month: baseMonth, amountNet })
+        }
+      }
+    })
   }
 }
 
@@ -428,6 +460,32 @@ async function _seedRealData(tx: KluczeDB) {
   const now = new Date()
   const seedMonthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   await tx.budgetMonths.put({ id: seedMonthId, openedAt: now.toISOString() })
+
+  // Seed oneTime income copies for current month (per-month materialization)
+  await tx.householdIncomes.bulkPut([
+    { id: `income-1-m${seedMonthId}`, label: 'Jarek', person: 'me', amountNet: 25200, frequency: 'oneTime', month: seedMonthId, activeFrom: '2026-01-01', activeTo: null, sortIndex: 0 },
+    { id: `income-2-m${seedMonthId}`, label: 'Blanka', person: 'partner', amountNet: 5000, frequency: 'oneTime', month: seedMonthId, activeFrom: '2026-01-01', activeTo: null, sortIndex: 1 },
+    { id: `income-3-m${seedMonthId}`, label: 'Dziecko', person: 'other', amountNet: 800, frequency: 'oneTime', month: seedMonthId, activeFrom: '2026-01-01', activeTo: null, sortIndex: 2 },
+  ])
+
+  // Seed oneTime expense copies for recurring expenses for current month
+  await tx.householdExpenses.bulkPut([
+    { id: `exp-1-m${seedMonthId}`,  label: 'Wynajem mieszkania',                         category: 'Mieszkanie (wynajem/czynsz)', amount: 1700,   frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 0 },
+    { id: `exp-2-m${seedMonthId}`,  label: 'Czynsz administracyjny',                     category: 'Mieszkanie (wynajem/czynsz)', amount: 800,    frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 1 },
+    { id: `exp-13-m${seedMonthId}`, label: 'Ubezpieczenie na życie (Spokojna Hipoteka)', category: 'Bank i ubezpieczenia',        amount: 308.39, frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 2 },
+    { id: `exp-15-m${seedMonthId}`, label: 'Konto osobiste Santander',                   category: 'Bank i ubezpieczenia',        amount: 6,      frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 4 },
+    { id: `exp-16-m${seedMonthId}`, label: 'Karta Visa Silver (Santander)',               category: 'Bank i ubezpieczenia',        amount: 7.50,   frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 5 },
+    { id: `exp-7-m${seedMonthId}`,  label: 'Rata — Telefon',                             category: 'Kredyty/raty',                amount: 580,    frequency: 'oneTime', month: seedMonthId, isLiability: true,  sortIndex: 6 },
+    { id: `exp-8-m${seedMonthId}`,  label: 'Rata — Leczenie',                            category: 'Kredyty/raty',                amount: 1250,   frequency: 'oneTime', month: seedMonthId, isLiability: true,  sortIndex: 7 },
+    { id: `exp-9-m${seedMonthId}`,  label: 'Księgowość',                                 category: 'Firma',                       amount: 250,    frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 8 },
+    { id: `exp-10-m${seedMonthId}`, label: 'ZUS',                                        category: 'Firma',                       amount: 2757,   frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 9 },
+    { id: `exp-11-m${seedMonthId}`, label: 'PIT 28',                                     category: 'Firma',                       amount: 2361,   frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 10 },
+    { id: `exp-12-m${seedMonthId}`, label: 'VAT 7',                                      category: 'Firma',                       amount: 4715,   frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 11 },
+    { id: `exp-3-m${seedMonthId}`,  label: 'Orange — telefon i internet',                category: 'Rachunki',                    amount: 250,    frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 12 },
+    { id: `exp-4-m${seedMonthId}`,  label: 'Netflix',                                    category: 'Subskrypcje',                 amount: 43,     frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 13 },
+    { id: `exp-5-m${seedMonthId}`,  label: 'Disney+',                                    category: 'Subskrypcje',                 amount: 30,     frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 14 },
+    { id: `exp-6-m${seedMonthId}`,  label: 'Przedszkole',                                category: 'Dziecko',                     amount: 600,    frequency: 'oneTime', month: seedMonthId, isLiability: false, sortIndex: 15 },
+  ])
 
   await tx.savingsPlan.put({
     id: 'main',

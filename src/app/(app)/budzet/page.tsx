@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X, Lock } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
@@ -233,6 +233,9 @@ type UndoEntry =
   | { type: 'addExp';    record: HouseholdExpense }
   | { type: 'delExp';    record: HouseholdExpense }
   | { type: 'updateExp'; id: string; prev: Partial<HouseholdExpense>; next: Partial<HouseholdExpense> }
+  | { type: 'addInc';    record: HouseholdIncome }
+  | { type: 'delInc';    record: HouseholdIncome }
+  | { type: 'updateInc'; id: string; prev: Partial<HouseholdIncome>; next: Partial<HouseholdIncome> }
 
 // ─── Monthly Overview ─────────────────────────────────────────────────────────
 
@@ -277,6 +280,15 @@ function MonthlyOverview({
     } else if (entry.type === 'updateExp') {
       redoStack.current.push({ type: 'updateExp', id: entry.id, prev: entry.next, next: entry.prev })
       await db.householdExpenses.update(entry.id, entry.prev)
+    } else if (entry.type === 'addInc') {
+      redoStack.current.push({ type: 'delInc', record: entry.record })
+      await db.householdIncomes.delete(entry.record.id)
+    } else if (entry.type === 'delInc') {
+      redoStack.current.push({ type: 'addInc', record: entry.record })
+      await db.householdIncomes.put(entry.record)
+    } else if (entry.type === 'updateInc') {
+      redoStack.current.push({ type: 'updateInc', id: entry.id, prev: entry.next, next: entry.prev })
+      await db.householdIncomes.update(entry.id, entry.prev)
     }
     toast('Cofnięto')
   }, [])
@@ -293,6 +305,15 @@ function MonthlyOverview({
     } else if (entry.type === 'updateExp') {
       undoStack.current.push({ type: 'updateExp', id: entry.id, prev: entry.next, next: entry.prev })
       await db.householdExpenses.update(entry.id, entry.prev)
+    } else if (entry.type === 'addInc') {
+      undoStack.current.push({ type: 'delInc', record: entry.record })
+      await db.householdIncomes.put(entry.record)
+    } else if (entry.type === 'delInc') {
+      undoStack.current.push({ type: 'addInc', record: entry.record })
+      await db.householdIncomes.delete(entry.record.id)
+    } else if (entry.type === 'updateInc') {
+      undoStack.current.push({ type: 'updateInc', id: entry.id, prev: entry.next, next: entry.prev })
+      await db.householdIncomes.update(entry.id, entry.prev)
     }
     toast('Ponowiono')
   }, [])
@@ -339,11 +360,15 @@ function MonthlyOverview({
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   async function deleteMonth() {
-    // Remove all oneTime expenses for this month
-    const toDelete = await db.householdExpenses
+    // Remove all oneTime expenses and incomes for this month
+    const expToDelete = await db.householdExpenses
       .filter(e => e.frequency === 'oneTime' && e.month === month)
       .toArray()
-    await Promise.all(toDelete.map(e => db.householdExpenses.delete(e.id)))
+    await Promise.all(expToDelete.map(e => db.householdExpenses.delete(e.id)))
+    const incToDelete = await db.householdIncomes
+      .filter(i => i.frequency === 'oneTime' && i.month === month)
+      .toArray()
+    await Promise.all(incToDelete.map(i => db.householdIncomes.delete(i.id)))
     // Remove from budgetMonths (except base month — keep it open)
     if (month !== base) {
       await db.budgetMonths.delete(month)
@@ -365,23 +390,30 @@ function MonthlyOverview({
     for (const e of srcExp) {
       await db.householdExpenses.add({ ...e, id: generateId(), month })
     }
+    const srcInc = await db.householdIncomes
+      .filter(i => i.frequency === 'oneTime' && i.month === fromMonth)
+      .toArray()
+    for (const i of srcInc) {
+      await db.householdIncomes.add({ ...i, id: generateId(), month })
+    }
     await db.budgetMonths.put({ id: month, openedAt: new Date().toISOString() })
     setOpenDialog(false)
     setDupFrom(null)
-    toast.success('Skopiowano wydatki')
+    toast.success('Skopiowano wydatki i przychody')
   }
 
   // ── computed ──────────────────────────────────────────────────────────────────
 
+  const monthlyIncomes = useMemo(() =>
+    incomes.filter(inc => inc.frequency === 'oneTime' && inc.month === month)
+  , [incomes, month])
+
   const totalIncome = useMemo(() =>
-    incomes.reduce((s, inc) =>
-      s + (inc.frequency === 'monthly' ? inc.amountNet : inc.frequency === 'quarterly' ? inc.amountNet / 3 : inc.amountNet / 12), 0)
-  , [incomes])
+    monthlyIncomes.reduce((s, inc) => s + inc.amountNet, 0)
+  , [monthlyIncomes])
 
   const monthlyExpenses = useMemo(() =>
-    expenses.filter(e =>
-      e.frequency === 'monthly' || e.frequency === 'quarterly' || e.frequency === 'annual' ||
-      (e.frequency === 'oneTime' && e.month === month))
+    expenses.filter(e => e.frequency === 'oneTime' && e.month === month)
   , [expenses, month])
 
   const mortgageLoad = useMemo(() => {
@@ -404,9 +436,7 @@ function MonthlyOverview({
   }, [monthlyExpenses, categoryOrder])
 
   const totalExpenses = useMemo(() =>
-    monthlyExpenses.reduce((s, e) =>
-      s + (e.frequency === 'monthly' ? e.amount : e.frequency === 'quarterly' ? e.amount / 3 : e.frequency === 'annual' ? e.amount / 12 : e.amount), 0)
-    + mortgageLoad
+    monthlyExpenses.reduce((s, e) => s + e.amount, 0) + mortgageLoad
   , [monthlyExpenses, mortgageLoad])
 
   const remainder = totalIncome - totalExpenses
@@ -457,11 +487,13 @@ function MonthlyOverview({
     if (!addForm.label.trim()) return
     const all = await db.householdIncomes.toArray()
     const maxIdx = Math.max(...all.map(e => e.sortIndex ?? 0), -1)
-    await db.householdIncomes.add({
+    const record: HouseholdIncome = {
       id: generateId(), label: addForm.label.trim(), person: 'other',
       amountNet: parseFloat(addForm.amount.replace(',', '.')) || 0,
-      frequency: 'monthly', activeFrom: currentMonth(), activeTo: null, sortIndex: maxIdx + 1,
-    })
+      frequency: 'oneTime', month, activeFrom: month, activeTo: null, sortIndex: maxIdx + 1,
+    }
+    await db.householdIncomes.add(record)
+    pushUndo({ type: 'addInc', record })
     setAddForm({ label: '', amount: '' }); setAddingIncCategory(false)
     toast.success('Dodano przychód')
   }
@@ -485,7 +517,7 @@ function MonthlyOverview({
     return <SectionEmptyState title="Brak danych budżetowych" description="Dodaj przychody i wydatki w zakładkach poniżej" />
   }
 
-  const sortedIncomes = [...incomes].sort((a, b) => (a.sortIndex ?? 99) - (b.sortIndex ?? 99))
+  const sortedIncomes = [...monthlyIncomes].sort((a, b) => (a.sortIndex ?? 99) - (b.sortIndex ?? 99))
 
   return (
     <div className="space-y-4">
@@ -606,25 +638,59 @@ function MonthlyOverview({
 
         {/* ── Przychody ── */}
         <div className="rounded-lg border overflow-hidden">
-          <div className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between">
+          <div
+            className="px-4 py-2.5 font-semibold text-sm bg-emerald-600 text-white flex items-center justify-between group/inc cursor-pointer"
+            onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
+          >
             <span>Przychody</span>
-            <span className="text-[11px] font-normal opacity-70">tylko do odczytu</span>
+            <Plus className="h-3.5 w-3.5 opacity-0 group-hover/inc:opacity-100 transition-opacity" />
           </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              {sortedIncomes.map(inc => {
-                const monthlyAmt = inc.frequency === 'monthly' ? inc.amountNet : inc.frequency === 'quarterly' ? inc.amountNet / 3 : inc.amountNet / 12
-                return (
-                  <tr key={inc.id} className="text-muted-foreground">
-                    <td className="px-2 py-2 w-5 text-muted-foreground/30">
-                      <Lock className="h-3 w-3" />
-                    </td>
-                    <td className="py-2.5 pr-2 text-foreground/70">{inc.label}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-foreground/70">{formatPLN(monthlyAmt)}</td>
-                    <td className="w-7" />
-                  </tr>
-                )
-              })}
+              {sortedIncomes.map(inc => (
+                <tr key={inc.id} className="group border-t border-border/50 hover:bg-muted/30 transition-colors">
+                  <td className="px-2 py-2 w-5" />
+                  <td className="py-2.5 pr-2">
+                    <InlineLabel
+                      value={inc.label}
+                      onSave={async v => {
+                        pushUndo({ type: 'updateInc', id: inc.id, prev: { label: inc.label }, next: { label: v } })
+                        await db.householdIncomes.update(inc.id, { label: v })
+                      }}
+                    />
+                  </td>
+                  <td className="px-2 py-2.5 text-right">
+                    <InlineAmount
+                      value={inc.amountNet}
+                      onSave={async v => {
+                        pushUndo({ type: 'updateInc', id: inc.id, prev: { amountNet: inc.amountNet }, next: { amountNet: v } })
+                        await db.householdIncomes.update(inc.id, { amountNet: v })
+                      }}
+                    />
+                  </td>
+                  <td className="px-2 py-2 w-7">
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      title="Usuń"
+                      onClick={async () => {
+                        pushUndo({ type: 'delInc', record: inc })
+                        await db.householdIncomes.delete(inc.id)
+                        toast.success('Usunięto')
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {addingIncCategory && (
+                <AddRow
+                  addForm={addForm}
+                  setAddForm={setAddForm}
+                  onSave={saveAddIncome}
+                  onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }}
+                />
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-muted/50 border-t-2 border-border">
@@ -633,7 +699,6 @@ function MonthlyOverview({
               </tr>
             </tfoot>
           </table>
-          <p className="px-4 py-2 text-[11px] text-muted-foreground border-t">Edytuj przychody w zakładce <strong>Przychody</strong></p>
         </div>
 
         {/* ── Wydatki ── */}
@@ -656,19 +721,16 @@ function MonthlyOverview({
                     </td>
                   </tr>
                   {items.map(exp => {
-                    const amount = exp.frequency === 'quarterly' ? exp.amount / 3 : exp.frequency === 'annual' ? exp.amount / 12 : exp.amount
-                    const isRecurring = exp.frequency !== 'oneTime'
-                    const isDragging = !isRecurring && drag?.dragId === exp.id
-                    const isOver    = !isRecurring && drag?.overId === exp.id && !isDragging
+                    const isDragging = drag?.dragId === exp.id
+                    const isOver    = drag?.overId === exp.id && !isDragging
                     return (
-                      // All expense rows are editable
                       <tr
                         key={exp.id}
-                        draggable={!isRecurring}
-                        onDragStart={!isRecurring ? e => onDragStart(e, exp.id) : undefined}
-                        onDragOver={!isRecurring ? e => onDragOver(e, exp.id) : undefined}
-                        onDrop={!isRecurring ? e => onDrop(e, exp.id, category) : undefined}
-                        onDragEnd={!isRecurring ? () => setDrag(null) : undefined}
+                        draggable
+                        onDragStart={e => onDragStart(e, exp.id)}
+                        onDragOver={e => onDragOver(e, exp.id)}
+                        onDrop={e => onDrop(e, exp.id, category)}
+                        onDragEnd={() => setDrag(null)}
                         className={cn(
                           'group border-t border-border/50 transition-colors',
                           isDragging ? 'opacity-40 bg-muted/40' : 'hover:bg-muted/30',
@@ -676,9 +738,7 @@ function MonthlyOverview({
                         )}
                       >
                         <td className="px-2 py-2 w-5 text-muted-foreground/20 group-hover:text-muted-foreground/50">
-                          {isRecurring
-                            ? <span className="text-[9px] font-bold tabular-nums leading-none">∞</span>
-                            : <GripVertical className="h-3.5 w-3.5 cursor-grab active:cursor-grabbing" />}
+                          <GripVertical className="h-3.5 w-3.5 cursor-grab active:cursor-grabbing" />
                         </td>
                         <td className="py-2.5 pr-2">
                           <InlineLabel
@@ -691,7 +751,7 @@ function MonthlyOverview({
                         </td>
                         <td className="px-2 py-2.5 text-right">
                           <InlineAmount
-                            value={amount}
+                            value={exp.amount}
                             onSave={async v => {
                               pushUndo({ type: 'updateExp', id: exp.id, prev: { amount: exp.amount }, next: { amount: v } })
                               await db.householdExpenses.update(exp.id, { amount: v })
