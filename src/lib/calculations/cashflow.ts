@@ -31,8 +31,11 @@ export function calcMonthlyData(
   tranches: MortgageTranche[],
   prevSavings: number,
 ): MonthlyCashflow {
-  // Total income (active in this month)
+  // Total income (recurring active in this month + oneTime for this month)
   const totalIncome = incomes.reduce((sum, inc) => {
+    if (inc.frequency === 'oneTime') {
+      return inc.month === month ? sum + inc.amountNet : sum
+    }
     if (inc.activeFrom && inc.activeFrom.slice(0, 7) > month) return sum
     if (inc.activeTo && inc.activeTo.slice(0, 7) < month) return sum
     return sum + normalizeToMonthly(inc.amountNet, inc.frequency)

@@ -1097,16 +1097,20 @@ function ExpenseDialog({ open, onClose, existing, categories }: { open: boolean;
 
 function SavingsForm() {
   const plan = useLiveQuery(() => db.savingsPlan.get('main'))
-  const [form, setForm] = useState({ initialSavings: 0, currentSavings: 0, safetyBuffer: 20000 })
+  const [form, setForm] = useState({ currentSavings: 0, safetyBuffer: 20000 })
   const [loaded, setLoaded] = useState(false)
 
   if (plan && !loaded) {
-    setForm({ initialSavings: plan.initialSavings, currentSavings: plan.currentSavings, safetyBuffer: plan.safetyBuffer })
+    setForm({ currentSavings: plan.currentSavings, safetyBuffer: plan.safetyBuffer })
     setLoaded(true)
   }
 
   async function save() {
-    await db.savingsPlan.update('main', { ...form, lastUpdated: new Date().toISOString() })
+    await db.savingsPlan.update('main', {
+      ...form,
+      initialSavings: form.currentSavings,
+      lastUpdated: new Date().toISOString(),
+    })
     toast.success('Zapisano')
   }
 
@@ -1115,15 +1119,20 @@ function SavingsForm() {
       <div className="grid grid-cols-1 gap-3">
         <div>
           <Label className="text-xs">Obecne oszczędności (zł)</Label>
-          <Input type="number" value={form.currentSavings || ''} onChange={e => setForm(p => ({ ...p, currentSavings: Number(e.target.value) }))} />
-        </div>
-        <div>
-          <Label className="text-xs">Startowe oszczędności (na początek projekcji)</Label>
-          <Input type="number" value={form.initialSavings || ''} onChange={e => setForm(p => ({ ...p, initialSavings: Number(e.target.value) }))} />
+          <Input
+            type="number"
+            value={form.currentSavings || ''}
+            onChange={e => setForm(p => ({ ...p, currentSavings: Number(e.target.value) }))}
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">Punkt startowy projekcji</p>
         </div>
         <div>
           <Label className="text-xs">Minimalna poduszka bezpieczeństwa (zł)</Label>
-          <Input type="number" value={form.safetyBuffer || ''} onChange={e => setForm(p => ({ ...p, safetyBuffer: Number(e.target.value) }))} />
+          <Input
+            type="number"
+            value={form.safetyBuffer || ''}
+            onChange={e => setForm(p => ({ ...p, safetyBuffer: Number(e.target.value) }))}
+          />
         </div>
       </div>
       <Button className="w-full" onClick={save}>Zapisz</Button>
@@ -1139,6 +1148,7 @@ export default function BudzetPage() {
   const savingsPlan = useLiveQuery(() => db.savingsPlan.get('main'), [])
   const mortgage = useLiveQuery(() => db.mortgage.get('main'), [])
   const tranches = useLiveQuery(() => db.mortgageTranches.toArray(), [])
+  const budgetMonths = useLiveQuery(() => db.budgetMonths.toArray(), [])
   const dbCategories = useLiveQuery(() => db.expenseCategories.orderBy('sortIndex').toArray(), [])
   const categoryNames = useMemo(() => dbCategories?.map(c => c.name) ?? [], [dbCategories])
   const [incDialog, setIncDialog] = useState<{ open: boolean; existing?: HouseholdIncome }>({ open: false })
@@ -1166,16 +1176,26 @@ export default function BudzetPage() {
 
   const projection = useMemo(() => {
     if (!incomes || !expenses) return []
-    return buildCashflowProjection(
+    const startSavings = savingsPlan?.currentSavings ?? 0
+    const base = buildCashflowProjection(
       currentMonth(),
       36,
       incomes,
       expenses,
       mortgage ?? null,
       tranches ?? [],
-      savingsPlan?.initialSavings ?? 0,
+      startSavings,
     )
-  }, [incomes, expenses, mortgage, tranches, savingsPlan])
+    // For opened months replace savable/savingsEnd with actual savedAmount
+    const bmMap = new Map(budgetMonths?.map(m => [m.id, m.savedAmount]) ?? [])
+    let prev = startSavings
+    return base.map(row => {
+      const saved = bmMap.has(row.month) ? (bmMap.get(row.month) ?? 0) : row.savable
+      const savingsEnd = prev + saved
+      prev = savingsEnd
+      return { ...row, savable: saved, savingsEnd }
+    })
+  }, [incomes, expenses, mortgage, tranches, savingsPlan, budgetMonths])
 
   async function deleteIncome(id: string) {
     await db.householdIncomes.delete(id)
