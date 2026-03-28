@@ -253,6 +253,28 @@ function MonthlyOverview({
   const base = currentMonth()
   const isLocked = month > base && !(openedMonths?.some(m => m.id === month))
 
+  const canDelete = useMemo(() => {
+    // Block deletion of months older than 3 months from today
+    const cutoff = addMonths(base, -3)
+    return month >= cutoff
+  }, [month, base])
+
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+
+  async function deleteMonth() {
+    // Remove all oneTime expenses for this month
+    const toDelete = await db.householdExpenses
+      .filter(e => e.frequency === 'oneTime' && e.month === month)
+      .toArray()
+    await Promise.all(toDelete.map(e => db.householdExpenses.delete(e.id)))
+    // Remove from budgetMonths (except base month — keep it open)
+    if (month !== base) {
+      await db.budgetMonths.delete(month)
+    }
+    setDeleteConfirm(false)
+    toast.success('Rozliczenie zostało usunięte')
+  }
+
   async function openMonth(mode: 'copy' | 'fresh'): Promise<void> {
     if (mode === 'copy') {
       const prev = addMonths(month, -1)
@@ -397,7 +419,35 @@ function MonthlyOverview({
         <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => setMonth(addMonths(month, 1))}>
           <ChevronRight className="h-4 w-4" />
         </Button>
+
+        {!isLocked && (
+          <Button
+            size="sm" variant="ghost"
+            className="h-8 w-8 p-0 ml-2 text-muted-foreground hover:text-destructive"
+            disabled={!canDelete}
+            title={canDelete ? 'Usuń rozliczenie tego miesiąca' : 'Nie można usunąć miesięcy starszych niż 3 miesiące'}
+            onClick={() => setDeleteConfirm(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
+
+      <Dialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Usuń rozliczenie</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Usunięcie rozliczenia <strong>{monthLabel}</strong> skasuje wszystkie jednorazowe wpisy wydatków z tego miesiąca
+            {month !== base ? ' i wróci do ekranu blokady.' : '.'}
+          </p>
+          <div className="flex gap-2 justify-end pt-1">
+            <Button variant="outline" onClick={() => setDeleteConfirm(false)}>Anuluj</Button>
+            <Button variant="destructive" onClick={deleteMonth}>Usuń</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Locked month screen ── */}
       {isLocked && (
