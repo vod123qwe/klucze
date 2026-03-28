@@ -6,6 +6,7 @@ import type {
   MortgageTranche,
   HouseholdIncome,
   HouseholdExpense,
+  ExpenseCategory,
   SavingsPlan,
   FitoutItem,
   Scenario,
@@ -15,6 +16,21 @@ import type {
   Decision,
 } from '@/types'
 
+const DEFAULT_CATEGORIES: string[] = [
+  'Mieszkanie (wynajem/czynsz)',
+  'Bank i ubezpieczenia',
+  'Kredyty/raty',
+  'Firma',
+  'Rachunki',
+  'Subskrypcje',
+  'Dziecko',
+  'Zdrowie',
+  'Żywność',
+  'Transport',
+  'Rozrywka',
+  'Inne',
+]
+
 class KluczeDB extends Dexie {
   property!: EntityTable<Property, 'id'>
   purchaseCosts!: EntityTable<PurchaseCost, 'id'>
@@ -22,6 +38,7 @@ class KluczeDB extends Dexie {
   mortgageTranches!: EntityTable<MortgageTranche, 'id'>
   householdIncomes!: EntityTable<HouseholdIncome, 'id'>
   householdExpenses!: EntityTable<HouseholdExpense, 'id'>
+  expenseCategories!: EntityTable<ExpenseCategory, 'id'>
   savingsPlan!: EntityTable<SavingsPlan, 'id'>
   fitoutItems!: EntityTable<FitoutItem, 'id'>
   scenarios!: EntityTable<Scenario, 'id'>
@@ -48,10 +65,8 @@ class KluczeDB extends Dexie {
       decisions: 'id, date',
     })
 
-    // Version 2 — no schema changes, seed handled by seedDefaultData()
     this.version(2).stores({})
 
-    // Version 3 — add sortIndex to incomes and expenses
     this.version(3).stores({
       householdIncomes: 'id, person, sortIndex',
       householdExpenses: 'id, category, frequency, sortIndex',
@@ -65,6 +80,36 @@ class KluczeDB extends Dexie {
       const incomes = await incTable.toArray()
       for (let i = 0; i < incomes.length; i++) {
         await incTable.update(incomes[i].id, { sortIndex: i })
+      }
+    })
+
+    // Version 4 — add expenseCategories table
+    this.version(4).stores({
+      expenseCategories: 'id, sortIndex',
+    }).upgrade(async tx => {
+      const catTable = tx.table('expenseCategories')
+      for (let i = 0; i < DEFAULT_CATEGORIES.length; i++) {
+        await catTable.put({ id: DEFAULT_CATEGORIES[i], name: DEFAULT_CATEGORIES[i], sortIndex: i })
+      }
+      // Fix Locum Comfort: change from monthly to 5 × oneTime January entries
+      const expTable = tx.table('householdExpenses')
+      const locum = await expTable.get('exp-14')
+      if (locum && locum.frequency === 'monthly') {
+        await expTable.delete('exp-14')
+        const all = await expTable.toArray()
+        const maxIdx = Math.max(...all.map((e: HouseholdExpense) => e.sortIndex ?? 0), 0)
+        for (let yr = 0; yr < 5; yr++) {
+          await expTable.put({
+            id: `exp-14-${2026 + yr}`,
+            label: `Ubezpieczenie nieruchomości ${2026 + yr} (Locum Comfort)`,
+            category: 'Bank i ubezpieczenia',
+            amount: 984,
+            frequency: 'oneTime',
+            month: `${2026 + yr}-01`,
+            isLiability: false,
+            sortIndex: maxIdx + 1 + yr,
+          })
+        }
       }
     })
   }
@@ -343,7 +388,11 @@ async function _seedRealData(tx: KluczeDB) {
     { id: 'exp-1',  label: 'Wynajem mieszkania',                         category: 'Mieszkanie (wynajem/czynsz)', amount: 1700,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 0 },
     { id: 'exp-2',  label: 'Czynsz administracyjny',                     category: 'Mieszkanie (wynajem/czynsz)', amount: 800,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 1 },
     { id: 'exp-13', label: 'Ubezpieczenie na życie (Spokojna Hipoteka)', category: 'Bank i ubezpieczenia',        amount: 308.39, frequency: 'monthly', month: null, isLiability: false, sortIndex: 2 },
-    { id: 'exp-14', label: 'Ubezpieczenie nieruchomości (Locum Comfort)',category: 'Bank i ubezpieczenia',        amount: 82,     frequency: 'monthly', month: null, isLiability: false, sortIndex: 3 },
+    { id: 'exp-14-2026', label: 'Ubezpieczenie nieruchomości 2026 (Locum Comfort)', category: 'Bank i ubezpieczenia', amount: 984, frequency: 'oneTime', month: '2026-01', isLiability: false, sortIndex: 3 },
+    { id: 'exp-14-2027', label: 'Ubezpieczenie nieruchomości 2027 (Locum Comfort)', category: 'Bank i ubezpieczenia', amount: 984, frequency: 'oneTime', month: '2027-01', isLiability: false, sortIndex: 4 },
+    { id: 'exp-14-2028', label: 'Ubezpieczenie nieruchomości 2028 (Locum Comfort)', category: 'Bank i ubezpieczenia', amount: 984, frequency: 'oneTime', month: '2028-01', isLiability: false, sortIndex: 5 },
+    { id: 'exp-14-2029', label: 'Ubezpieczenie nieruchomości 2029 (Locum Comfort)', category: 'Bank i ubezpieczenia', amount: 984, frequency: 'oneTime', month: '2029-01', isLiability: false, sortIndex: 6 },
+    { id: 'exp-14-2030', label: 'Ubezpieczenie nieruchomości 2030 (Locum Comfort)', category: 'Bank i ubezpieczenia', amount: 984, frequency: 'oneTime', month: '2030-01', isLiability: false, sortIndex: 7 },
     { id: 'exp-15', label: 'Konto osobiste Santander',                   category: 'Bank i ubezpieczenia',        amount: 6,      frequency: 'monthly', month: null, isLiability: false, sortIndex: 4 },
     { id: 'exp-16', label: 'Karta Visa Silver (Santander)',               category: 'Bank i ubezpieczenia',        amount: 7.50,   frequency: 'monthly', month: null, isLiability: false, sortIndex: 5 },
     { id: 'exp-7',  label: 'Rata — Telefon',                             category: 'Kredyty/raty',                amount: 580,    frequency: 'monthly', month: null, isLiability: true,  sortIndex: 6 },
@@ -357,6 +406,10 @@ async function _seedRealData(tx: KluczeDB) {
     { id: 'exp-5',  label: 'Disney+',                                    category: 'Subskrypcje',                 amount: 30,     frequency: 'monthly', month: null, isLiability: false, sortIndex: 14 },
     { id: 'exp-6',  label: 'Przedszkole',                                category: 'Dziecko',                     amount: 600,    frequency: 'monthly', month: null, isLiability: false, sortIndex: 15 },
   ])
+
+  await tx.expenseCategories.bulkAdd(
+    DEFAULT_CATEGORIES.map((name, i) => ({ id: name, name, sortIndex: i }))
+  )
 
   await tx.savingsPlan.add({
     id: 'main',

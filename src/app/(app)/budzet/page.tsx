@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, GripVertical, Settings2, Check, X } from 'lucide-react'
 import { db } from '@/lib/db/db'
 import { generateId, formatPLN, currentMonth, addMonths, formatDate } from '@/lib/utils/format'
 import { buildCashflowProjection } from '@/lib/calculations/cashflow'
@@ -18,26 +18,98 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { HouseholdIncome, HouseholdExpense, Mortgage, MortgageTranche } from '@/types'
+import type { HouseholdIncome, HouseholdExpense, Mortgage, MortgageTranche, ExpenseCategory } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-const EXPENSE_CATEGORIES = [
-  'Mieszkanie (wynajem/czynsz)',
-  'Bank i ubezpieczenia',
-  'Kredyty/raty',
-  'Firma',
-  'Rachunki',
-  'Subskrypcje',
-  'Dziecko',
-  'Zdrowie',
-  'Żywność',
-  'Transport',
-  'Rozrywka',
-  'Inne',
-]
+// ─── Category manager dialog ───────────────────────────────────────────────────
 
-const CATEGORY_ORDER = EXPENSE_CATEGORIES
+function CategoryManagerDialog({ open, onClose, categories }: {
+  open: boolean
+  onClose: () => void
+  categories: ExpenseCategory[]
+}) {
+  const [newName, setNewName] = useState('')
+  const [catDrag, setCatDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
+
+  async function addCategory() {
+    const name = newName.trim()
+    if (!name) return
+    if (categories.some(c => c.id === name)) { toast.error('Kategoria już istnieje'); return }
+    const maxIdx = Math.max(...categories.map(c => c.sortIndex), -1)
+    await db.expenseCategories.add({ id: name, name, sortIndex: maxIdx + 1 })
+    setNewName('')
+    toast.success('Dodano kategorię')
+  }
+
+  async function deleteCategory(cat: ExpenseCategory) {
+    const used = await db.householdExpenses.where('category').equals(cat.name).count()
+    if (used > 0) { toast.error(`Kategoria ma ${used} wydatków — najpierw je przenieś`); return }
+    await db.expenseCategories.delete(cat.id)
+    toast.success('Usunięto')
+  }
+
+  async function dropCategory(dragId: string, overId: string) {
+    if (dragId === overId) return
+    const sorted = [...categories]
+    const fi = sorted.findIndex(c => c.id === dragId)
+    const ti = sorted.findIndex(c => c.id === overId)
+    if (fi === -1 || ti === -1) return
+    const [moved] = sorted.splice(fi, 1)
+    sorted.splice(ti, 0, moved)
+    await Promise.all(sorted.map((c, i) => db.expenseCategories.update(c.id, { sortIndex: i })))
+    setCatDrag(null)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Kategorie wydatków</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="Nazwa nowej kategorii..."
+              onKeyDown={e => e.key === 'Enter' && addCategory()}
+            />
+            <Button size="sm" variant="outline" onClick={addCategory}><Plus className="h-4 w-4" /></Button>
+          </div>
+          <div className="divide-y rounded-lg border overflow-hidden text-sm">
+            {categories.map(cat => {
+              const isOver = catDrag?.overId === cat.id && catDrag.dragId !== cat.id
+              return (
+                <div
+                  key={cat.id}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setCatDrag({ dragId: cat.id, overId: null }) }}
+                  onDragOver={e => { e.preventDefault(); setCatDrag(d => d ? { ...d, overId: cat.id } : d) }}
+                  onDrop={e => { e.preventDefault(); catDrag && dropCategory(catDrag.dragId, cat.id) }}
+                  onDragEnd={() => setCatDrag(null)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors',
+                    catDrag?.dragId === cat.id ? 'opacity-40' : '',
+                    isOver ? 'border-t-2 border-primary' : '',
+                  )}
+                >
+                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                  <span className="flex-1">{cat.name}</span>
+                  <button
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => deleteCategory(cat)}
+                    title="Usuń"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ─── Inline editors ───────────────────────────────────────────────────────────
 
@@ -106,6 +178,55 @@ function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => 
   )
 }
 
+// ─── AddRow (module-level to prevent remount on parent state change) ──────────
+
+function AddRow({
+  addForm,
+  setAddForm,
+  onSave,
+  onCancel,
+}: {
+  addForm: { label: string; amount: string }
+  setAddForm: React.Dispatch<React.SetStateAction<{ label: string; amount: string }>>
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <tr className="bg-primary/5 border-t border-primary/20">
+      <td className="px-2 w-5" />
+      <td className="py-1.5 pr-1">
+        <input
+          autoFocus
+          className="w-full border-b border-primary bg-transparent outline-none text-sm px-1"
+          placeholder="Nazwa..."
+          value={addForm.label}
+          onChange={e => setAddForm(p => ({ ...p, label: e.target.value }))}
+          onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+        />
+      </td>
+      <td className="py-1.5 px-1 w-28">
+        <input
+          className="w-full border-b border-primary bg-transparent outline-none text-sm text-right px-1 tabular-nums"
+          placeholder="0 zł"
+          value={addForm.amount}
+          onChange={e => setAddForm(p => ({ ...p, amount: e.target.value }))}
+          onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+        />
+      </td>
+      <td className="px-1 w-7">
+        <div className="flex items-center gap-0.5">
+          <button className="text-emerald-600 hover:text-emerald-700" onClick={onSave} title="Zatwierdź">
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button className="text-muted-foreground hover:text-destructive" onClick={onCancel} title="Anuluj">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 // ─── Monthly Overview ─────────────────────────────────────────────────────────
 
 function MonthlyOverview({
@@ -113,22 +234,19 @@ function MonthlyOverview({
   expenses,
   mortgage,
   tranches,
+  categoryOrder,
 }: {
   incomes: HouseholdIncome[]
   expenses: HouseholdExpense[]
   mortgage: Mortgage | null
   tranches: MortgageTranche[]
+  categoryOrder: string[]
 }) {
   const [month, setMonth] = useState(currentMonth())
-
-  // drag: only track ids (cross-category allowed)
   const [drag, setDrag] = useState<{ dragId: string; overId: string | null } | null>(null)
-
-  // inline add state
   const [addingIncCategory, setAddingIncCategory] = useState(false)
   const [addingExpCategory, setAddingExpCategory] = useState<string | null>(null)
   const [addForm, setAddForm] = useState({ label: '', amount: '' })
-
   // ── computed ──────────────────────────────────────────────────────────────────
 
   const totalIncome = useMemo(() =>
@@ -156,10 +274,10 @@ function MonthlyOverview({
     }
     for (const items of map.values()) items.sort((a, b) => (a.sortIndex ?? 999) - (b.sortIndex ?? 999))
     return [
-      ...CATEGORY_ORDER.filter(c => map.has(c)).map(c => ({ category: c, items: map.get(c)! })),
-      ...[...map.entries()].filter(([c]) => !CATEGORY_ORDER.includes(c)).map(([c, items]) => ({ category: c, items })),
+      ...categoryOrder.filter(c => map.has(c)).map(c => ({ category: c, items: map.get(c)! })),
+      ...[...map.entries()].filter(([c]) => !categoryOrder.includes(c)).map(([c, items]) => ({ category: c, items })),
     ]
-  }, [monthlyExpenses])
+  }, [monthlyExpenses, categoryOrder])
 
   const totalExpenses = useMemo(() =>
     monthlyExpenses.reduce((s, e) =>
@@ -237,36 +355,6 @@ function MonthlyOverview({
     toast.success('Dodano wydatek')
   }
 
-  function AddRow({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
-    return (
-      <tr className="bg-primary/5 border-t border-primary/20">
-        <td className="px-2 w-5" />
-        <td className="py-1.5 pr-1">
-          <input
-            autoFocus
-            className="w-full border-b border-primary bg-transparent outline-none text-sm px-1"
-            placeholder="Nazwa..."
-            value={addForm.label}
-            onChange={e => setAddForm(p => ({ ...p, label: e.target.value }))}
-            onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
-          />
-        </td>
-        <td className="py-1.5 px-1 w-28">
-          <input
-            className="w-full border-b border-primary bg-transparent outline-none text-sm text-right px-1 tabular-nums"
-            placeholder="0 zł"
-            value={addForm.amount}
-            onChange={e => setAddForm(p => ({ ...p, amount: e.target.value }))}
-            onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
-          />
-        </td>
-        <td className="px-1 w-7">
-          <button className="text-muted-foreground hover:text-destructive" onClick={onCancel} title="Anuluj">✕</button>
-        </td>
-      </tr>
-    )
-  }
-
   if (incomes.length === 0 && expenses.length === 0) {
     return <SectionEmptyState title="Brak danych budżetowych" description="Dodaj przychody i wydatki w zakładkach poniżej" />
   }
@@ -323,7 +411,7 @@ function MonthlyOverview({
               ))}
               {/* Add row */}
               {addingIncCategory ? (
-                <AddRow onSave={saveAddIncome} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }} />
+                <AddRow addForm={addForm} setAddForm={setAddForm} onSave={saveAddIncome} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(false) }} />
               ) : (
                 <tr
                   className="cursor-pointer hover:bg-muted/30 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
@@ -405,7 +493,7 @@ function MonthlyOverview({
                   })}
                   {/* Add row per category */}
                   {addingExpCategory === category ? (
-                    <AddRow onSave={() => saveAddExpense(category)} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(null) }} />
+                    <AddRow addForm={addForm} setAddForm={setAddForm} onSave={() => saveAddExpense(category)} onCancel={() => { setAddForm({ label: '', amount: '' }); setAddingExpCategory(null) }} />
                   ) : (
                     <tr
                       className="cursor-pointer hover:bg-muted/30 text-muted-foreground/40 hover:text-muted-foreground transition-colors border-t border-border/30"
@@ -520,7 +608,7 @@ function IncomeDialog({ open, onClose, existing }: { open: boolean; onClose: () 
   )
 }
 
-function ExpenseDialog({ open, onClose, existing }: { open: boolean; onClose: () => void; existing?: HouseholdExpense }) {
+function ExpenseDialog({ open, onClose, existing, categories }: { open: boolean; onClose: () => void; existing?: HouseholdExpense; categories: string[] }) {
   const [form, setForm] = useState<Omit<HouseholdExpense, 'id'>>({
     label: existing?.label ?? '',
     category: existing?.category ?? 'Inne',
@@ -554,7 +642,7 @@ function ExpenseDialog({ open, onClose, existing }: { open: boolean; onClose: ()
               <Select value={form.category} onValueChange={v => set('category', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {EXPENSE_CATEGORIES.map(c => (
+                  {categories.map(c => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -642,8 +730,11 @@ export default function BudzetPage() {
   const savingsPlan = useLiveQuery(() => db.savingsPlan.get('main'), [])
   const mortgage = useLiveQuery(() => db.mortgage.get('main'), [])
   const tranches = useLiveQuery(() => db.mortgageTranches.toArray(), [])
+  const dbCategories = useLiveQuery(() => db.expenseCategories.orderBy('sortIndex').toArray(), [])
+  const categoryNames = useMemo(() => dbCategories?.map(c => c.name) ?? [], [dbCategories])
   const [incDialog, setIncDialog] = useState<{ open: boolean; existing?: HouseholdIncome }>({ open: false })
   const [expDialog, setExpDialog] = useState<{ open: boolean; existing?: HouseholdExpense }>({ open: false })
+  const [catManagerOpen, setCatManagerOpen] = useState(false)
 
   const totalMonthlyIncome = useMemo(() => {
     return incomes?.reduce((s, inc) => {
@@ -693,6 +784,10 @@ export default function BudzetPage() {
         description="Przychody, wydatki i projekcja oszczędności miesiąc po miesiącu"
         actions={
           <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setCatManagerOpen(true)}>
+              <Settings2 className="h-4 w-4 mr-1" />
+              Kategorie
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setIncDialog({ open: true })}>
               <Plus className="h-4 w-4 mr-1" />
               Przychód
@@ -745,6 +840,7 @@ export default function BudzetPage() {
             expenses={expenses ?? []}
             mortgage={mortgage ?? null}
             tranches={tranches ?? []}
+            categoryOrder={categoryNames}
           />
         </TabsContent>
 
@@ -916,6 +1012,12 @@ export default function BudzetPage() {
         open={expDialog.open}
         onClose={() => setExpDialog({ open: false })}
         existing={expDialog.existing}
+        categories={categoryNames}
+      />
+      <CategoryManagerDialog
+        open={catManagerOpen}
+        onClose={() => setCatManagerOpen(false)}
+        categories={dbCategories ?? []}
       />
     </div>
   )

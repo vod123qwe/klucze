@@ -94,6 +94,12 @@ export interface HouseholdIncome {
   sortIndex?: number
 }
 
+export interface ExpenseCategory {
+  id: string       // same as name
+  name: string
+  sortIndex: number
+}
+
 export interface HouseholdExpense {
   id: string
   label: string
