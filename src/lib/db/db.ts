@@ -98,16 +98,6 @@ async function _seedRealData(tx: KluczeDB) {
       linkedDocumentIds: [],
     },
     {
-      id: 'cost-2',
-      name: 'Budżet remontowy (w kredycie)',
-      category: 'postHandover',
-      amount: 130000,
-      status: 'planned',
-      dueDate: null,
-      note: 'Włączony do kwoty kredytu. Wartość nieruchomości po remoncie: 979 000 zł.',
-      linkedDocumentIds: [],
-    },
-    {
       id: 'cost-3',
       name: 'Rezerwacja (zapłacona)',
       category: 'downPayment',
