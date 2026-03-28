@@ -636,18 +636,13 @@ function MonthlyOverview({
 
       {!isLocked && <>
 
-      {/* ── KPI strip (per-month) ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Przychody" value={formatPLN(totalIncome)} trend="up" valueClassName="text-emerald-600" />
-        <KpiCard label="Wydatki" value={formatPLN(totalExpenses)} trend="down" />
-        <KpiCard
-          label="Zostaje"
-          value={formatPLN(remainder)}
-          alert={remainder < 0 ? 'critical' : undefined}
-          valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
-        />
-        <KpiCard label="Oszczędności dziś" value={formatPLN(currentSavings)} valueClassName="text-emerald-600" />
-      </div>
+      {/* ── Single remainder card ── */}
+      <KpiCard
+        label="Zostaje na życie"
+        value={formatPLN(remainder)}
+        alert={remainder < 0 ? 'critical' : undefined}
+        valueClassName={remainder >= 0 ? 'text-emerald-600' : undefined}
+      />
 
       <div className="grid grid-cols-2 gap-4 items-start">
 
@@ -658,7 +653,10 @@ function MonthlyOverview({
             onClick={() => { setAddForm({ label: '', amount: '' }); setAddingIncCategory(true) }}
           >
             <span>Przychody</span>
-            <Plus className="h-3.5 w-3.5 opacity-0 group-hover/inc:opacity-100 transition-opacity" />
+            <div className="flex items-center gap-2">
+              <span className="tabular-nums font-medium opacity-80">{formatPLN(totalIncome)}</span>
+              <Plus className="h-3.5 w-3.5 opacity-0 group-hover/inc:opacity-100 transition-opacity" />
+            </div>
           </div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
@@ -718,7 +716,10 @@ function MonthlyOverview({
 
         {/* ── Wydatki ── */}
         <div className="rounded-lg border overflow-hidden">
-          <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white">Wydatki</div>
+          <div className="px-4 py-2.5 font-semibold text-sm bg-rose-600 text-white flex items-center justify-between">
+            <span>Wydatki</span>
+            <span className="tabular-nums font-medium opacity-80">{formatPLN(totalExpenses)}</span>
+          </div>
           <table className="w-full text-sm">
             <tbody>
               {grouped.map(({ category, items }) => (
