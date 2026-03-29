@@ -37,8 +37,10 @@ export function TopBar() {
         await importAllData(text)
         toast.success('Dane zaimportowane — odśwież stronę')
         window.location.reload()
-      } catch {
-        toast.error('Błąd importu — sprawdź plik JSON')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        toast.error(`Błąd importu: ${msg}`)
+        console.error('Import failed:', err)
       }
     }
     input.click()

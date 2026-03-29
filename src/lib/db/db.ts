@@ -745,23 +745,23 @@ export async function importAllData(json: string): Promise<void> {
         db.decisions.clear(),
       ])
 
-      await Promise.all([
-        data.property?.length && db.property.bulkAdd(data.property),
-        data.purchaseCosts?.length && db.purchaseCosts.bulkAdd(data.purchaseCosts),
-        data.mortgage?.length && db.mortgage.bulkAdd(data.mortgage),
-        data.mortgageTranches?.length && db.mortgageTranches.bulkAdd(data.mortgageTranches),
-        data.householdIncomes?.length && db.householdIncomes.bulkAdd(data.householdIncomes),
-        data.householdExpenses?.length && db.householdExpenses.bulkAdd(data.householdExpenses),
-        data.expenseCategories?.length && db.expenseCategories.bulkAdd(data.expenseCategories),
-        data.budgetMonths?.length && db.budgetMonths.bulkAdd(data.budgetMonths),
-        data.savingsPlan?.length && db.savingsPlan.bulkAdd(data.savingsPlan),
-        data.fitoutItems?.length && db.fitoutItems.bulkAdd(data.fitoutItems),
-        data.scenarios?.length && db.scenarios.bulkAdd(data.scenarios),
-        data.documents?.length && db.documents.bulkAdd(data.documents),
-        data.milestones?.length && db.milestones.bulkAdd(data.milestones),
-        data.checklistItems?.length && db.checklistItems.bulkAdd(data.checklistItems),
-        data.decisions?.length && db.decisions.bulkAdd(data.decisions),
-      ])
+      const puts: Promise<unknown>[] = []
+      if (data.property?.length)          puts.push(db.property.bulkAdd(data.property))
+      if (data.purchaseCosts?.length)     puts.push(db.purchaseCosts.bulkAdd(data.purchaseCosts))
+      if (data.mortgage?.length)          puts.push(db.mortgage.bulkAdd(data.mortgage))
+      if (data.mortgageTranches?.length)  puts.push(db.mortgageTranches.bulkAdd(data.mortgageTranches))
+      if (data.householdIncomes?.length)  puts.push(db.householdIncomes.bulkAdd(data.householdIncomes))
+      if (data.householdExpenses?.length) puts.push(db.householdExpenses.bulkAdd(data.householdExpenses))
+      if (data.expenseCategories?.length) puts.push(db.expenseCategories.bulkAdd(data.expenseCategories))
+      if (data.budgetMonths?.length)      puts.push(db.budgetMonths.bulkAdd(data.budgetMonths))
+      if (data.savingsPlan?.length)       puts.push(db.savingsPlan.bulkAdd(data.savingsPlan))
+      if (data.fitoutItems?.length)       puts.push(db.fitoutItems.bulkAdd(data.fitoutItems))
+      if (data.scenarios?.length)         puts.push(db.scenarios.bulkAdd(data.scenarios))
+      if (data.documents?.length)         puts.push(db.documents.bulkAdd(data.documents))
+      if (data.milestones?.length)        puts.push(db.milestones.bulkAdd(data.milestones))
+      if (data.checklistItems?.length)    puts.push(db.checklistItems.bulkAdd(data.checklistItems))
+      if (data.decisions?.length)         puts.push(db.decisions.bulkAdd(data.decisions))
+      await Promise.all(puts)
     },
   )
 }
