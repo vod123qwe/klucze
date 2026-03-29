@@ -623,6 +623,55 @@ export default function ScenariuszePage() {
             />
           </div>
 
+          {/* "Stan po X latach" — panel widoczny gdy duration > 0 */}
+          {ovType === 'monthly' && ovDuration > 0 && ovSchedule.length > 0 && hasMortgage && (() => {
+            const endIdx  = Math.min(ovEndMonth! - 1, ovSchedule.length - 1)
+            const baseEnd = snapshotAt(baseSchedule, ovEndMonth!)
+            const ovEnd   = ovSchedule[endIdx]
+            const interestSavedSoFar = baseSchedule.slice(0, ovEndMonth).reduce((s, r) => s + r.interest, 0)
+              - ovSchedule.slice(0, Math.min(ovEndMonth!, ovSchedule.length)).reduce((s, r) => s + r.interest, 0)
+            // installment after overpayments stop (next row after end)
+            const installmentAfter = ovSchedule[Math.min(ovEndMonth!, ovSchedule.length - 1)]?.payment
+            return (
+              <div className="rounded-lg border-2 border-violet-200 bg-violet-50/40 overflow-hidden">
+                <div className="px-4 py-3 border-b border-violet-200 bg-violet-100/50">
+                  <p className="font-semibold text-sm text-violet-800">
+                    Stan po {ovDuration / 12 >= 1 ? `${ovDuration / 12} latach` : `${ovDuration} miesiącach`} nadpłacania
+                  </p>
+                  <p className="text-xs text-violet-600 mt-0.5">
+                    Nadpłaty +{formatPLN(ovAmt)}/mies. od miesiąca {ovStart} do miesiąca {ovEndMonth} — potem standardowe raty
+                  </p>
+                </div>
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Saldo bez nadpłat</p>
+                    <p className="font-semibold tabular-nums text-sm">{baseEnd ? formatPLN(baseEnd.balance) : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Saldo z nadpłatami</p>
+                    <p className="font-semibold tabular-nums text-sm text-violet-700">{ovEnd ? formatPLN(ovEnd.balance) : 'spłacony'}</p>
+                    {baseEnd && ovEnd && (
+                      <p className="text-xs text-emerald-600 font-medium">–{formatPLN(baseEnd.balance - ovEnd.balance)} mniej</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Zaoszczędzone odsetki</p>
+                    <p className="font-semibold tabular-nums text-sm text-emerald-600">{formatPLN(interestSavedSoFar)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {ovEffect === 'reduceInstallment' ? 'Rata po okresie' : 'Skrócenie okresu'}
+                    </p>
+                    {ovEffect === 'reduceInstallment'
+                      ? <p className="font-semibold tabular-nums text-sm text-violet-700">{installmentAfter ? formatPLN(installmentAfter) : '—'} <span className="text-xs font-normal text-muted-foreground">(było {formatPLN(baseInstallment)})</span></p>
+                      : <p className="font-semibold tabular-nums text-sm text-violet-700">{periodReduction} mies. krócej</p>
+                    }
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Plain-language summary */}
           {ovSchedule.length > 0 && hasMortgage && (
             <div className="rounded-lg bg-muted/40 border px-4 py-3 text-sm text-muted-foreground">
