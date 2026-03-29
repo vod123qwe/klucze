@@ -219,7 +219,6 @@ export default function ScenariuszePage() {
   const [ovAmt,      setOvAmt]      = useState(10000)
   const [ovType,     setOvType]     = useState<'oneTime' | 'monthly'>('oneTime')
   const [ovStart,    setOvStart]    = useState(0)
-  const [ovEffect,   setOvEffect]   = useState<'reducePeriod' | 'reduceInstallment'>('reducePeriod')
   const [ovDuration, setOvDuration] = useState(0) // 0 = zawsze; else months
 
   const overpaymentPrincipal = mortgage?.amount ?? 0
@@ -236,26 +235,31 @@ export default function ScenariuszePage() {
 
   const ovEndMonth = ovType === 'monthly' && ovDuration > 0 ? ovStart + ovDuration : undefined
 
-  const ovSchedule = useMemo(() => {
+  // Two schedules — always compute both effects simultaneously
+  const ovSchedulePeriod = useMemo(() => {
     if (!mortgage || overpaymentPrincipal <= 0 || ovAmt <= 0) return []
     return calcOverpaymentSchedule(
       overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType,
-      ovAmt, ovType, ovStart, ovEffect, ovEndMonth,
+      ovAmt, ovType, ovStart, 'reducePeriod', ovEndMonth,
     )
-  }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType, ovAmt, ovType, ovStart, ovEffect, ovEndMonth])
+  }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType, ovAmt, ovType, ovStart, ovEndMonth])
 
-  // Summary stats
-  const baseTotalInterest = useMemo(() =>
-    baseSchedule.reduce((s, r) => s + r.interest, 0)
-  , [baseSchedule])
+  const ovScheduleInstall = useMemo(() => {
+    if (!mortgage || overpaymentPrincipal <= 0 || ovAmt <= 0) return []
+    return calcOverpaymentSchedule(
+      overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType,
+      ovAmt, ovType, ovStart, 'reduceInstallment', ovEndMonth,
+    )
+  }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType, ovAmt, ovType, ovStart, ovEndMonth])
 
-  const ovTotalInterest = useMemo(() =>
-    ovSchedule.reduce((s, r) => s + r.interest, 0)
-  , [ovSchedule])
+  const baseTotalInterest   = useMemo(() => baseSchedule.reduce((s, r) => s + r.interest, 0), [baseSchedule])
+  const periodTotalInterest = useMemo(() => ovSchedulePeriod.reduce((s, r) => s + r.interest, 0), [ovSchedulePeriod])
+  const installTotalInterest = useMemo(() => ovScheduleInstall.reduce((s, r) => s + r.interest, 0), [ovScheduleInstall])
 
-  const savedInterest   = baseTotalInterest - ovTotalInterest
-  const periodReduction = baseSchedule.length - ovSchedule.length
-  const newInstallment  = ovSchedule.length > ovStart + 1 ? ovSchedule[ovStart + 1]?.payment : undefined
+  const savedInterestPeriod  = baseTotalInterest - periodTotalInterest
+  const savedInterestInstall = baseTotalInterest - installTotalInterest
+  const periodReduction      = baseSchedule.length - ovSchedulePeriod.length
+  const newInstallment       = ovScheduleInstall.length > ovStart + 1 ? ovScheduleInstall[ovStart + 1]?.payment : undefined
 
   // Snapshot rows for comparison table
   const snapshotAt = (schedule: typeof baseSchedule, months: number) => {
@@ -265,30 +269,28 @@ export default function ScenariuszePage() {
     return { balance: row.balance, interestPaid, payment: row.payment }
   }
 
-  // Chart data — sample every 6 months for readability
+  // Chart data — 3 lines: base, reducePeriod, reduceInstallment
   const chartData = useMemo(() => {
-    const maxLen = Math.max(baseSchedule.length, ovSchedule.length)
+    const maxLen = Math.max(baseSchedule.length, ovSchedulePeriod.length, ovScheduleInstall.length)
     const data = []
     for (let i = 0; i <= maxLen; i += 6) {
       data.push({
         month: i,
-        base: baseSchedule[i]?.balance ?? null,
-        // null when ov schedule ended so line stops cleanly (not drops to 0)
-        ov: ovSchedule.length > 0
-          ? (i < ovSchedule.length ? (ovSchedule[i]?.balance ?? null) : null)
-          : null,
+        base:    baseSchedule[i]?.balance ?? null,
+        period:  ovSchedulePeriod.length > 0  ? (i < ovSchedulePeriod.length  ? (ovSchedulePeriod[i]?.balance  ?? null) : null) : null,
+        install: ovScheduleInstall.length > 0 ? (i < ovScheduleInstall.length ? (ovScheduleInstall[i]?.balance ?? null) : null) : null,
       })
     }
     return data
-  }, [baseSchedule, ovSchedule])
+  }, [baseSchedule, ovSchedulePeriod, ovScheduleInstall])
 
   // X-axis ticks: every 2 years
   const chartTicks = useMemo(() => {
-    const maxLen = Math.max(baseSchedule.length, ovSchedule.length)
+    const maxLen = Math.max(baseSchedule.length, ovSchedulePeriod.length, ovScheduleInstall.length)
     const ticks = []
     for (let i = 0; i <= maxLen; i += 24) ticks.push(i)
     return ticks
-  }, [baseSchedule.length, ovSchedule.length])
+  }, [baseSchedule.length, ovSchedulePeriod.length, ovScheduleInstall.length])
 
   const hasMortgage  = !!mortgage
   const hasNoData    = !hasMortgage
