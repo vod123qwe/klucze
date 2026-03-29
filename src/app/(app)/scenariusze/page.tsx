@@ -507,7 +507,7 @@ export default function ScenariuszePage() {
             <p className="font-semibold text-sm">Parametry nadpłaty</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
                 <label className="text-xs text-muted-foreground">Kwota nadpłaty (zł)</label>
                 <input
                   type="number"
@@ -517,6 +517,16 @@ export default function ScenariuszePage() {
                   onChange={e => setOvAmt(Number(e.target.value))}
                   className="border rounded px-3 py-1.5 text-sm tabular-nums w-full outline-none focus:ring-1 focus:ring-primary"
                 />
+                <div className="flex gap-1 flex-wrap">
+                  {[1000, 5000, 10000, 20000, 50000].map(v => (
+                    <button key={v} onClick={() => setOvAmt(v)}
+                      className={cn('px-2 py-0.5 text-xs rounded border transition-colors',
+                        ovAmt === v ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'
+                      )}>
+                      {v >= 1000 ? `${v / 1000}k` : v}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -531,16 +541,19 @@ export default function ScenariuszePage() {
                 />
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Zacznij po miesiącach</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={overpaymentMonths}
-                  step={1}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground">Kiedy zacząć</label>
+                <ToggleGroup
+                  options={[
+                    { value: 0,   label: 'Teraz' },
+                    { value: 12,  label: 'Po 1r' },
+                    { value: 24,  label: 'Po 2l' },
+                    { value: 36,  label: 'Po 3l' },
+                    { value: 60,  label: 'Po 5l' },
+                    { value: 120, label: 'Po 10l' },
+                  ]}
                   value={ovStart}
-                  onChange={e => setOvStart(Number(e.target.value))}
-                  className="border rounded px-3 py-1.5 text-sm tabular-nums w-full outline-none focus:ring-1 focus:ring-primary"
+                  onChange={setOvStart}
                 />
               </div>
 
@@ -572,21 +585,36 @@ export default function ScenariuszePage() {
             {ovEffect === 'reducePeriod' ? (
               <KpiCard
                 label="Skrócenie okresu"
-                value={periodReduction > 0 ? `${periodReduction} mies.` : '—'}
-                valueClassName="text-violet-600"
+                value={periodReduction > 0 ? `${periodReduction} mies.` : '0 mies.'}
+                valueClassName={periodReduction > 0 ? 'text-violet-600' : undefined}
               />
             ) : (
               <KpiCard
-                label="Nowa rata (po nadpłacie)"
+                label={`Nowa rata (zamiast ${formatPLN(baseInstallment)})`}
                 value={newInstallment ? formatPLN(newInstallment) : '—'}
                 valueClassName="text-violet-600"
               />
             )}
             <KpiCard
-              label="Nowy okres spłaty"
+              label={`Nowy okres (zamiast ${baseSchedule.length} mies.)`}
               value={ovSchedule.length > 0 ? `${ovSchedule.length} mies.` : '—'}
+              valueClassName={periodReduction > 0 ? 'text-violet-600' : undefined}
             />
           </div>
+
+          {/* Plain-language summary */}
+          {ovSchedule.length > 0 && hasMortgage && (
+            <div className="rounded-lg bg-muted/40 border px-4 py-3 text-sm text-muted-foreground">
+              {ovType === 'oneTime'
+                ? <>Jednorazowa nadpłata <strong className="text-foreground">{formatPLN(ovAmt)}</strong> po {ovStart === 0 ? 'pierwszej racie' : `${ovStart} miesiącach`} — </>
+                : <>Nadpłacając <strong className="text-foreground">{formatPLN(ovAmt)}</strong> extra co miesiąc od {ovStart === 0 ? 'teraz' : `miesiąca ${ovStart}`} — </>
+              }
+              {ovEffect === 'reducePeriod'
+                ? <>skrócisz kredyt o <strong className="text-foreground">{periodReduction} mies.</strong> i zaoszczędzisz <strong className="text-emerald-600">{formatPLN(savedInterest)}</strong> na odsetkach.</>
+                : <>zmniejszysz ratę do <strong className="text-foreground">{newInstallment ? formatPLN(newInstallment) : '—'}</strong> i zaoszczędzisz <strong className="text-emerald-600">{formatPLN(savedInterest)}</strong> na odsetkach.</>
+              }
+            </div>
+          )}
 
           {/* Comparison table */}
           {hasMortgage && baseSchedule.length > 0 && (
