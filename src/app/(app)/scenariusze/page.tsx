@@ -265,19 +265,30 @@ export default function ScenariuszePage() {
     return { balance: row.balance, interestPaid, payment: row.payment }
   }
 
-  // Chart data — sample every 3 months for performance
+  // Chart data — sample every 6 months for readability
   const chartData = useMemo(() => {
     const maxLen = Math.max(baseSchedule.length, ovSchedule.length)
     const data = []
-    for (let i = 0; i < maxLen; i += 3) {
+    for (let i = 0; i <= maxLen; i += 6) {
       data.push({
         month: i,
-        base: baseSchedule[i]?.balance ?? 0,
-        ov:   i < ovSchedule.length ? ovSchedule[i]?.balance : 0,
+        base: baseSchedule[i]?.balance ?? null,
+        // null when ov schedule ended so line stops cleanly (not drops to 0)
+        ov: ovSchedule.length > 0
+          ? (i < ovSchedule.length ? (ovSchedule[i]?.balance ?? null) : null)
+          : null,
       })
     }
     return data
   }, [baseSchedule, ovSchedule])
+
+  // X-axis ticks: every 2 years
+  const chartTicks = useMemo(() => {
+    const maxLen = Math.max(baseSchedule.length, ovSchedule.length)
+    const ticks = []
+    for (let i = 0; i <= maxLen; i += 24) ticks.push(i)
+    return ticks
+  }, [baseSchedule.length, ovSchedule.length])
 
   const hasMortgage  = !!mortgage
   const hasNoData    = !hasMortgage
@@ -729,31 +740,53 @@ export default function ScenariuszePage() {
           {hasMortgage && chartData.length > 0 && (
             <div className="rounded-lg border bg-card p-4">
               <p className="font-semibold text-sm mb-3">Krzywa zadłużenia</p>
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="month"
-                    tickFormatter={v => `${Math.round(v / 12)}r`}
+                    ticks={chartTicks}
+                    tickFormatter={v => `${Math.round(Number(v) / 12)}r`}
                     tick={{ fontSize: 11 }}
-                    label={{ value: 'miesiące', position: 'insideBottomRight', offset: -8, fontSize: 11 }}
                   />
                   <YAxis
-                    tickFormatter={v => `${Math.round(v / 1000)}k`}
+                    tickFormatter={v => `${Math.round(Number(v) / 1000)}k`}
                     tick={{ fontSize: 11 }}
-                    width={48}
+                    width={52}
                   />
                   <Tooltip
-                    formatter={(v: unknown) => formatPLN(Number(v))}
-                    labelFormatter={(v: unknown) => `Miesiąc ${v} (rok ${Math.floor(Number(v) / 12)})`}
+                    formatter={(v: unknown, name: unknown) => [
+                      v != null ? formatPLN(Number(v)) : '—',
+                      name === 'base' ? 'Bez nadpłat' : 'Z nadpłatą',
+                    ]}
+                    labelFormatter={(v: unknown) => `Rok ${Math.floor(Number(v) / 12)} (mies. ${v})`}
                   />
                   <Legend formatter={v => v === 'base' ? 'Bez nadpłat' : 'Z nadpłatą'} />
-                  <Line type="monotone" dataKey="base" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} name="base" />
+                  <Line
+                    type="monotone" dataKey="base" name="base"
+                    stroke="#94a3b8" strokeWidth={2} dot={false}
+                    connectNulls={false}
+                  />
                   {ovSchedule.length > 0 && (
-                    <Line type="monotone" dataKey="ov" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} name="ov" />
+                    <Line
+                      type="monotone" dataKey="ov" name="ov"
+                      stroke="#7c3aed" strokeWidth={2.5} dot={false}
+                      connectNulls={false}
+                    />
                   )}
-                  {ovSchedule.length < baseSchedule.length && ovSchedule.length > 0 && (
-                    <ReferenceLine x={ovSchedule.length} stroke="hsl(var(--primary))" strokeDasharray="4 2" label={{ value: 'spłata', fontSize: 10, fill: 'hsl(var(--primary))' }} />
+                  {ovEffect === 'reducePeriod' && ovSchedule.length < baseSchedule.length && ovSchedule.length > 0 && (
+                    <ReferenceLine
+                      x={ovSchedule.length}
+                      stroke="#7c3aed" strokeDasharray="4 2"
+                      label={{ value: 'spłata', fontSize: 10, fill: '#7c3aed', position: 'top' }}
+                    />
+                  )}
+                  {ovDuration > 0 && ovEndMonth && (
+                    <ReferenceLine
+                      x={ovEndMonth}
+                      stroke="#f59e0b" strokeDasharray="4 2"
+                      label={{ value: 'koniec nadpłat', fontSize: 9, fill: '#b45309', position: 'top' }}
+                    />
                   )}
                 </LineChart>
               </ResponsiveContainer>
