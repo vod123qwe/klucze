@@ -65,8 +65,6 @@ export default function DashboardPage() {
   const curRemainder = curTotalIncome - curSavedAmount - curTotalExpenses
 
   // ── Savings curve (from opened months + savedAmount – withdrawals) ──────────
-  const initialSavings = savingsPlan?.initialSavings ?? 0
-
   const chartData = useMemo(() => {
     if (!budgetMonths || budgetMonths.length === 0) return []
     const withdrawalsByMonth = (expenses ?? [])
@@ -75,20 +73,20 @@ export default function DashboardPage() {
         acc[e.month!] = (acc[e.month!] ?? 0) + e.amount
         return acc
       }, {})
-    let cumulative = initialSavings
+    let cumulative = 0
     return budgetMonths.map(m => {
       cumulative += m.savedAmount - (withdrawalsByMonth[m.id] ?? 0)
       return { monthId: m.id, savings: cumulative }
     })
-  }, [budgetMonths, initialSavings, expenses])
+  }, [budgetMonths, expenses])
 
   // ── Savings at delivery ────────────────────────────────────────────────────
   const savingsAtDelivery = useMemo(() => {
     if (!deliveryMonth || chartData.length === 0) return null
     const atOrBefore = chartData.filter(d => d.monthId <= deliveryMonth)
-    if (atOrBefore.length === 0) return initialSavings
+    if (atOrBefore.length === 0) return 0
     return atOrBefore[atOrBefore.length - 1].savings
-  }, [deliveryMonth, chartData, initialSavings])
+  }, [deliveryMonth, chartData])
 
   // ── Alerts ────────────────────────────────────────────────────────────────
   const safetyBuffer = savingsPlan?.safetyBuffer ?? 20000
