@@ -64,17 +64,23 @@ export default function DashboardPage() {
   const curSavedAmount = curBudgetMonth?.savedAmount ?? 0
   const curRemainder = curTotalIncome - curSavedAmount - curTotalExpenses
 
-  // ── Savings curve (from opened months + savedAmount) ──────────────────────
+  // ── Savings curve (from opened months + savedAmount – withdrawals) ──────────
   const initialSavings = savingsPlan?.initialSavings ?? 0
 
   const chartData = useMemo(() => {
     if (!budgetMonths || budgetMonths.length === 0) return []
+    const withdrawalsByMonth = (expenses ?? [])
+      .filter(e => e.isSavingsWithdrawal && e.month)
+      .reduce<Record<string, number>>((acc, e) => {
+        acc[e.month!] = (acc[e.month!] ?? 0) + e.amount
+        return acc
+      }, {})
     let cumulative = initialSavings
     return budgetMonths.map(m => {
-      cumulative += m.savedAmount
+      cumulative += m.savedAmount - (withdrawalsByMonth[m.id] ?? 0)
       return { monthId: m.id, savings: cumulative }
     })
-  }, [budgetMonths, initialSavings])
+  }, [budgetMonths, initialSavings, expenses])
 
   // ── Savings at delivery ────────────────────────────────────────────────────
   const savingsAtDelivery = useMemo(() => {
