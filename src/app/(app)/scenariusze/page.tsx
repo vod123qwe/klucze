@@ -521,9 +521,9 @@ export default function ScenariuszePage() {
           {/* Inputs */}
           <div className="rounded-lg border bg-card p-4 space-y-4">
             <p className="font-semibold text-sm">Parametry nadpłaty</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
 
-              <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
+              <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-muted-foreground">Kwota nadpłaty (zł)</label>
                 <input
                   type="number"
@@ -573,20 +573,8 @@ export default function ScenariuszePage() {
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-muted-foreground">Efekt nadpłaty</label>
-                <ToggleGroup
-                  options={[
-                    { value: 'reducePeriod' as const, label: 'Skróć okres' },
-                    { value: 'reduceInstallment' as const, label: 'Zmniejsz ratę' },
-                  ]}
-                  value={ovEffect}
-                  onChange={setOvEffect}
-                />
-              </div>
-
               {ovType === 'monthly' && (
-                <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-4">
+                <div className="flex flex-col gap-1.5 col-span-1 sm:col-span-2 md:col-span-3">
                   <label className="text-xs text-muted-foreground">Przez ile lat nadpłacać</label>
                   <ToggleGroup
                     options={[
@@ -609,42 +597,40 @@ export default function ScenariuszePage() {
             </p>
           </div>
 
-          {/* KPI summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* KPI summary — always show both effects */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <KpiCard
-              label="Zaoszczędzone odsetki"
-              value={ovSchedule.length > 0 ? formatPLN(savedInterest) : '—'}
+              label="Oszczędność (skróć okres)"
+              value={ovSchedulePeriod.length > 0 ? formatPLN(savedInterestPeriod) : '—'}
               valueClassName="text-emerald-600"
             />
-            {ovEffect === 'reducePeriod' ? (
-              <KpiCard
-                label="Skrócenie okresu"
-                value={periodReduction > 0 ? `${periodReduction} mies.` : '0 mies.'}
-                valueClassName={periodReduction > 0 ? 'text-violet-600' : undefined}
-              />
-            ) : (
-              <KpiCard
-                label={`Nowa rata (zamiast ${formatPLN(baseInstallment)})`}
-                value={newInstallment ? formatPLN(newInstallment) : '—'}
-                valueClassName="text-violet-600"
-              />
-            )}
             <KpiCard
-              label={`Nowy okres (zamiast ${baseSchedule.length} mies.)`}
-              value={ovSchedule.length > 0 ? `${ovSchedule.length} mies.` : '—'}
+              label="Skrócenie okresu"
+              value={periodReduction > 0 ? `${periodReduction} mies.` : '0 mies.'}
               valueClassName={periodReduction > 0 ? 'text-violet-600' : undefined}
+            />
+            <KpiCard
+              label="Oszczędność (zmniejsz ratę)"
+              value={ovScheduleInstall.length > 0 ? formatPLN(savedInterestInstall) : '—'}
+              valueClassName="text-emerald-600"
+            />
+            <KpiCard
+              label={`Nowa rata (zamiast ${formatPLN(baseInstallment)})`}
+              value={newInstallment ? formatPLN(newInstallment) : '—'}
+              valueClassName="text-teal-600"
             />
           </div>
 
-          {/* "Stan po X latach" — panel widoczny gdy duration > 0 */}
-          {ovType === 'monthly' && ovDuration > 0 && ovSchedule.length > 0 && hasMortgage && (() => {
-            const endIdx  = Math.min(ovEndMonth! - 1, ovSchedule.length - 1)
+          {/* "Stan po X latach" — both variants side by side */}
+          {ovType === 'monthly' && ovDuration > 0 && ovSchedulePeriod.length > 0 && hasMortgage && (() => {
             const baseEnd = snapshotAt(baseSchedule, ovEndMonth!)
-            const ovEnd   = ovSchedule[endIdx]
-            const interestSavedSoFar = baseSchedule.slice(0, ovEndMonth).reduce((s, r) => s + r.interest, 0)
-              - ovSchedule.slice(0, Math.min(ovEndMonth!, ovSchedule.length)).reduce((s, r) => s + r.interest, 0)
-            // installment after overpayments stop (next row after end)
-            const installmentAfter = ovSchedule[Math.min(ovEndMonth!, ovSchedule.length - 1)]?.payment
+            const periodEnd = ovSchedulePeriod[Math.min(ovEndMonth! - 1, ovSchedulePeriod.length - 1)]
+            const installEnd = ovScheduleInstall[Math.min(ovEndMonth! - 1, ovScheduleInstall.length - 1)]
+            const interestSavedPeriodSoFar = baseSchedule.slice(0, ovEndMonth).reduce((s, r) => s + r.interest, 0)
+              - ovSchedulePeriod.slice(0, Math.min(ovEndMonth!, ovSchedulePeriod.length)).reduce((s, r) => s + r.interest, 0)
+            const interestSavedInstallSoFar = baseSchedule.slice(0, ovEndMonth).reduce((s, r) => s + r.interest, 0)
+              - ovScheduleInstall.slice(0, Math.min(ovEndMonth!, ovScheduleInstall.length)).reduce((s, r) => s + r.interest, 0)
+            const installmentAfter = ovScheduleInstall[Math.min(ovEndMonth!, ovScheduleInstall.length - 1)]?.payment
             return (
               <div className="rounded-lg border-2 border-violet-200 bg-violet-50/40 overflow-hidden">
                 <div className="px-4 py-3 border-b border-violet-200 bg-violet-100/50">
@@ -652,93 +638,110 @@ export default function ScenariuszePage() {
                     Stan po {ovDuration / 12 >= 1 ? `${ovDuration / 12} latach` : `${ovDuration} miesiącach`} nadpłacania
                   </p>
                   <p className="text-xs text-violet-600 mt-0.5">
-                    Nadpłaty +{formatPLN(ovAmt)}/mies. od miesiąca {ovStart} do miesiąca {ovEndMonth} — potem standardowe raty
+                    Nadpłaty +{formatPLN(ovAmt)}/mies. — potem standardowe raty
                   </p>
                 </div>
-                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Saldo bez nadpłat</p>
-                    <p className="font-semibold tabular-nums text-sm">{baseEnd ? formatPLN(baseEnd.balance) : '—'}</p>
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Skróć okres */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Skróć okres</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Saldo (bez nadpłat)</span>
+                      <span className="tabular-nums">{baseEnd ? formatPLN(baseEnd.balance) : '—'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Saldo z nadpłatami</span>
+                      <span className="tabular-nums text-violet-700 font-semibold">{periodEnd ? formatPLN(periodEnd.balance) : 'spłacony'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Zaoszczędzone odsetki</span>
+                      <span className="tabular-nums text-emerald-600 font-semibold">{formatPLN(interestSavedPeriodSoFar)}</span>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Saldo z nadpłatami</p>
-                    <p className="font-semibold tabular-nums text-sm text-violet-700">{ovEnd ? formatPLN(ovEnd.balance) : 'spłacony'}</p>
-                    {baseEnd && ovEnd && (
-                      <p className="text-xs text-emerald-600 font-medium">–{formatPLN(baseEnd.balance - ovEnd.balance)} mniej</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Zaoszczędzone odsetki</p>
-                    <p className="font-semibold tabular-nums text-sm text-emerald-600">{formatPLN(interestSavedSoFar)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      {ovEffect === 'reduceInstallment' ? 'Rata po okresie' : 'Skrócenie okresu'}
-                    </p>
-                    {ovEffect === 'reduceInstallment'
-                      ? <p className="font-semibold tabular-nums text-sm text-violet-700">{installmentAfter ? formatPLN(installmentAfter) : '—'} <span className="text-xs font-normal text-muted-foreground">(było {formatPLN(baseInstallment)})</span></p>
-                      : <p className="font-semibold tabular-nums text-sm text-violet-700">{periodReduction} mies. krócej</p>
-                    }
+                  {/* Zmniejsz ratę */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Zmniejsz ratę</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Saldo (bez nadpłat)</span>
+                      <span className="tabular-nums">{baseEnd ? formatPLN(baseEnd.balance) : '—'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Saldo z nadpłatami</span>
+                      <span className="tabular-nums text-teal-700 font-semibold">{installEnd ? formatPLN(installEnd.balance) : 'spłacony'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Zaoszczędzone odsetki</span>
+                      <span className="tabular-nums text-emerald-600 font-semibold">{formatPLN(interestSavedInstallSoFar)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground text-xs">Nowa rata po nadpłatach</span>
+                      <span className="tabular-nums text-teal-700 font-semibold">{installmentAfter ? formatPLN(installmentAfter) : '—'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             )
           })()}
 
-          {/* Plain-language summary */}
-          {ovSchedule.length > 0 && hasMortgage && (
-            <div className="rounded-lg bg-muted/40 border px-4 py-3 text-sm text-muted-foreground">
-              {ovType === 'oneTime'
-                ? <>Jednorazowa nadpłata <strong className="text-foreground">{formatPLN(ovAmt)}</strong> po {ovStart === 0 ? 'pierwszej racie' : `${ovStart} miesiącach`} — </>
-                : <>Nadpłacając <strong className="text-foreground">{formatPLN(ovAmt)}</strong> extra co miesiąc od {ovStart === 0 ? 'teraz' : `miesiąca ${ovStart}`} — </>
-              }
-              {ovEffect === 'reducePeriod'
-                ? <>skrócisz kredyt o <strong className="text-foreground">{periodReduction} mies.</strong> i zaoszczędzisz <strong className="text-emerald-600">{formatPLN(savedInterest)}</strong> na odsetkach.</>
-                : <>zmniejszysz ratę do <strong className="text-foreground">{newInstallment ? formatPLN(newInstallment) : '—'}</strong> i zaoszczędzisz <strong className="text-emerald-600">{formatPLN(savedInterest)}</strong> na odsetkach.</>
-              }
-            </div>
-          )}
-
-          {/* Comparison table */}
+          {/* Comparison table — 3 data columns */}
           {hasMortgage && baseSchedule.length > 0 && (
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/60">
-                    <th className="text-left px-4 py-2.5 font-semibold text-xs">Punkt w czasie</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-xs">Saldo bez nadpłat</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-xs">Saldo z nadpłatą</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-xs">Odsetki bez</th>
-                    <th className="text-right px-4 py-2.5 font-semibold text-xs">Odsetki z</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-xs">Punkt w czasie</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-xs">Bez nadpłat</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-xs text-violet-600">Skróć okres</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-xs text-teal-600">Zmniejsz ratę</th>
+                  </tr>
+                  <tr className="bg-muted/30 text-[10px] text-muted-foreground">
+                    <td className="px-3 py-1">saldo / odsetki zapłacone</td>
+                    <td className="px-3 py-1 text-right">{baseSchedule.length} mies.</td>
+                    <td className="px-3 py-1 text-right text-violet-600">{ovSchedulePeriod.length > 0 ? `${ovSchedulePeriod.length} mies.` : '—'}</td>
+                    <td className="px-3 py-1 text-right text-teal-600">{ovScheduleInstall.length > 0 ? `${ovScheduleInstall.length} mies.` : '—'}</td>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {[36, 60, 120].map(m => {
-                    const base = snapshotAt(baseSchedule, m)
-                    const ov   = snapshotAt(ovSchedule, m)
+                    const base    = snapshotAt(baseSchedule, m)
+                    const period  = snapshotAt(ovSchedulePeriod, m)
+                    const install = snapshotAt(ovScheduleInstall, m)
                     return (
                       <tr key={m} className="hover:bg-muted/30">
-                        <td className="px-4 py-2.5 font-medium">Po {m === 36 ? '3' : m === 60 ? '5' : '10'} latach</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">{base ? formatPLN(base.balance) : '—'}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-violet-600">{ov ? formatPLN(ov.balance) : 'spłacony'}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">{base ? formatPLN(base.interestPaid) : '—'}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600">{ov ? formatPLN(ov.interestPaid) : '—'}</td>
+                        <td className="px-3 py-2.5 font-medium">Po {m === 36 ? '3' : m === 60 ? '5' : '10'} latach</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          <div>{base ? formatPLN(base.balance) : '—'}</div>
+                          <div className="text-[10px] text-muted-foreground">{base ? formatPLN(base.interestPaid) : ''}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-violet-600">
+                          <div>{period ? formatPLN(period.balance) : 'spłacony'}</div>
+                          <div className="text-[10px] text-emerald-600">{period ? formatPLN(period.interestPaid) : ''}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-teal-600">
+                          <div>{install ? formatPLN(install.balance) : 'spłacony'}</div>
+                          <div className="text-[10px] text-emerald-600">{install ? formatPLN(install.interestPaid) : ''}</div>
+                        </td>
                       </tr>
                     )
                   })}
                   <tr className="bg-muted/40 font-semibold">
-                    <td className="px-4 py-2.5">Łącznie (cały okres)</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{baseSchedule.length} mies.</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-violet-600">{ovSchedule.length || baseSchedule.length} mies.</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{formatPLN(baseTotalInterest)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600">{ovSchedule.length > 0 ? formatPLN(ovTotalInterest) : '—'}</td>
+                    <td className="px-3 py-2.5">Łączne odsetki</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatPLN(baseTotalInterest)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-violet-600">
+                      {ovSchedulePeriod.length > 0 ? formatPLN(periodTotalInterest) : '—'}
+                      {savedInterestPeriod > 0 && <div className="text-[10px] text-emerald-600 font-normal">–{formatPLN(savedInterestPeriod)}</div>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-teal-600">
+                      {ovScheduleInstall.length > 0 ? formatPLN(installTotalInterest) : '—'}
+                      {savedInterestInstall > 0 && <div className="text-[10px] text-emerald-600 font-normal">–{formatPLN(savedInterestInstall)}</div>}
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* Chart */}
+          {/* Chart — 3 lines */}
           {hasMortgage && chartData.length > 0 && (
             <div className="rounded-lg border bg-card p-4">
               <p className="font-semibold text-sm mb-3">Krzywa zadłużenia</p>
@@ -759,28 +762,35 @@ export default function ScenariuszePage() {
                   <Tooltip
                     formatter={(v: unknown, name: unknown) => [
                       v != null ? formatPLN(Number(v)) : '—',
-                      name === 'base' ? 'Bez nadpłat' : 'Z nadpłatą',
+                      name === 'base' ? 'Bez nadpłat' : name === 'period' ? 'Skróć okres' : 'Zmniejsz ratę',
                     ]}
                     labelFormatter={(v: unknown) => `Rok ${Math.floor(Number(v) / 12)} (mies. ${v})`}
                   />
-                  <Legend formatter={v => v === 'base' ? 'Bez nadpłat' : 'Z nadpłatą'} />
+                  <Legend formatter={v => v === 'base' ? 'Bez nadpłat' : v === 'period' ? 'Skróć okres' : 'Zmniejsz ratę'} />
                   <Line
                     type="monotone" dataKey="base" name="base"
                     stroke="#94a3b8" strokeWidth={2} dot={false}
                     connectNulls={false}
                   />
-                  {ovSchedule.length > 0 && (
+                  {ovSchedulePeriod.length > 0 && (
                     <Line
-                      type="monotone" dataKey="ov" name="ov"
+                      type="monotone" dataKey="period" name="period"
                       stroke="#7c3aed" strokeWidth={2.5} dot={false}
                       connectNulls={false}
                     />
                   )}
-                  {ovEffect === 'reducePeriod' && ovSchedule.length < baseSchedule.length && ovSchedule.length > 0 && (
+                  {ovScheduleInstall.length > 0 && (
+                    <Line
+                      type="monotone" dataKey="install" name="install"
+                      stroke="#0d9488" strokeWidth={2.5} dot={false}
+                      connectNulls={false}
+                    />
+                  )}
+                  {ovSchedulePeriod.length > 0 && ovSchedulePeriod.length < baseSchedule.length && (
                     <ReferenceLine
-                      x={ovSchedule.length}
+                      x={ovSchedulePeriod.length}
                       stroke="#7c3aed" strokeDasharray="4 2"
-                      label={{ value: 'spłata', fontSize: 10, fill: '#7c3aed', position: 'top' }}
+                      label={{ value: 'spłata (skróć)', fontSize: 9, fill: '#7c3aed', position: 'top' }}
                     />
                   )}
                   {ovDuration > 0 && ovEndMonth && (
