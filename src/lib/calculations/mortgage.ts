@@ -103,6 +103,88 @@ export function calcMortgageLoadForMonth(
   }
 }
 
+// ─── Overpayment calculator ───────────────────────────────────────────────────
+
+export interface OverpaymentScheduleRow {
+  monthIndex: number
+  balance: number
+  payment: number
+  interest: number
+  principal: number
+  overpaymentAmount: number
+}
+
+/**
+ * Simulates mortgage amortization with optional overpayments.
+ *
+ * @param principal       Outstanding loan balance at simulation start
+ * @param annualRate      Total annual rate (interestRate + margin) as %
+ * @param originalMonths  Remaining months in the loan
+ * @param installmentType 'equal' (annuity) or 'decreasing'
+ * @param overpayment     Extra payment amount (jednorazowa or miesięczna)
+ * @param overpaymentType 'oneTime' | 'monthly'
+ * @param overpaymentStartMonth 0-based month index when overpayment kicks in
+ * @param overpaymentEffect 'reducePeriod' keeps installment, 'reduceInstallment' recalculates it
+ */
+export function calcOverpaymentSchedule(
+  principal: number,
+  annualRate: number,
+  originalMonths: number,
+  installmentType: 'equal' | 'decreasing',
+  overpayment: number,
+  overpaymentType: 'oneTime' | 'monthly',
+  overpaymentStartMonth: number,
+  overpaymentEffect: 'reducePeriod' | 'reduceInstallment',
+): OverpaymentScheduleRow[] {
+  if (principal <= 0 || originalMonths <= 0 || annualRate < 0) return []
+
+  const monthlyRate = annualRate / 100 / 12
+  const rows: OverpaymentScheduleRow[] = []
+  let balance = principal
+  let currentInstallment =
+    installmentType === 'equal' ? calcEqualInstallment(principal, annualRate, originalMonths) : 0
+
+  for (let i = 0; i < originalMonths * 2 && balance > 0.5; i++) {
+    const interest = Math.round(balance * monthlyRate * 100) / 100
+
+    let capitalInPayment: number
+    let payment: number
+    if (installmentType === 'equal') {
+      payment = Math.min(currentInstallment, balance + interest)
+      capitalInPayment = Math.max(0, payment - interest)
+    } else {
+      const cap = Math.round((principal / originalMonths) * 100) / 100
+      capitalInPayment = Math.min(cap, balance)
+      payment = capitalInPayment + interest
+    }
+
+    const isOverpaymentMonth =
+      overpaymentType === 'oneTime' ? i === overpaymentStartMonth : i >= overpaymentStartMonth
+    let overpaymentThisMonth = 0
+    if (isOverpaymentMonth && overpayment > 0) {
+      overpaymentThisMonth = Math.min(overpayment, Math.max(0, balance - capitalInPayment))
+    }
+
+    balance = Math.max(0, balance - capitalInPayment - overpaymentThisMonth)
+
+    rows.push({ monthIndex: i, balance, payment, interest, principal: capitalInPayment, overpaymentAmount: overpaymentThisMonth })
+
+    if (
+      overpaymentThisMonth > 0 &&
+      overpaymentEffect === 'reduceInstallment' &&
+      balance > 0 &&
+      installmentType === 'equal'
+    ) {
+      const remainingMonths = originalMonths - i - 1
+      if (remainingMonths > 0) {
+        currentInstallment = calcEqualInstallment(balance, annualRate, remainingMonths)
+      }
+    }
+  }
+
+  return rows
+}
+
 /**
  * Builds a full amortization schedule for the mortgage
  */
