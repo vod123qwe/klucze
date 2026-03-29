@@ -583,14 +583,16 @@ function MonthlyOverview({
     monthlyExpenses.reduce((s, e) => s + e.amount, 0) + mortgageLoad
   , [monthlyExpenses, mortgageLoad])
 
-  // Wallet = suma wszystkich "odkładam" – wypłaty z portfela (bez initialSavings)
+  // Wallet = suma "odkładam" z miesięcy <= aktualnego – wypłaty z portfela z miesięcy <= aktualnego
   const walletBalance = useMemo(() => {
-    const deposited = openedMonths?.reduce((s, m) => s + (m.savedAmount ?? 0), 0) ?? 0
-    const allWithdrawals = expenses
-      .filter(e => e.isSavingsWithdrawal)
+    const deposited = openedMonths
+      ?.filter(m => m.id <= month)
+      .reduce((s, m) => s + (m.savedAmount ?? 0), 0) ?? 0
+    const usedWithdrawals = expenses
+      .filter(e => e.isSavingsWithdrawal && e.month != null && e.month <= month)
       .reduce((s, e) => s + e.amount, 0)
-    return deposited - allWithdrawals
-  }, [openedMonths, expenses])
+    return deposited - usedWithdrawals
+  }, [openedMonths, expenses, month])
 
   const savedAmount = useMemo(() =>
     openedMonths?.find(m => m.id === month)?.savedAmount ?? 0
