@@ -135,6 +135,7 @@ export function calcOverpaymentSchedule(
   overpaymentType: 'oneTime' | 'monthly',
   overpaymentStartMonth: number,
   overpaymentEffect: 'reducePeriod' | 'reduceInstallment',
+  overpaymentEndMonth?: number, // undefined = forever; only used for 'monthly' type
 ): OverpaymentScheduleRow[] {
   if (principal <= 0 || originalMonths <= 0 || annualRate < 0) return []
 
@@ -159,7 +160,9 @@ export function calcOverpaymentSchedule(
     }
 
     const isOverpaymentMonth =
-      overpaymentType === 'oneTime' ? i === overpaymentStartMonth : i >= overpaymentStartMonth
+      overpaymentType === 'oneTime'
+        ? i === overpaymentStartMonth
+        : i >= overpaymentStartMonth && (overpaymentEndMonth === undefined || i < overpaymentEndMonth)
     let overpaymentThisMonth = 0
     if (isOverpaymentMonth && overpayment > 0) {
       overpaymentThisMonth = Math.min(overpayment, Math.max(0, balance - capitalInPayment))

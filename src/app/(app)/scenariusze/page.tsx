@@ -216,10 +216,11 @@ export default function ScenariuszePage() {
     : 0
 
   // ── Overpayment inputs ───────────────────────────────────────────────────────
-  const [ovAmt,    setOvAmt]    = useState(10000)
-  const [ovType,   setOvType]   = useState<'oneTime' | 'monthly'>('oneTime')
-  const [ovStart,  setOvStart]  = useState(0)
-  const [ovEffect, setOvEffect] = useState<'reducePeriod' | 'reduceInstallment'>('reducePeriod')
+  const [ovAmt,      setOvAmt]      = useState(10000)
+  const [ovType,     setOvType]     = useState<'oneTime' | 'monthly'>('oneTime')
+  const [ovStart,    setOvStart]    = useState(0)
+  const [ovEffect,   setOvEffect]   = useState<'reducePeriod' | 'reduceInstallment'>('reducePeriod')
+  const [ovDuration, setOvDuration] = useState(0) // 0 = zawsze; else months
 
   const overpaymentPrincipal = mortgage?.amount ?? 0
   const overpaymentMonths    = mortgage?.periodMonths ?? 0
@@ -233,13 +234,15 @@ export default function ScenariuszePage() {
     )
   }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType])
 
+  const ovEndMonth = ovType === 'monthly' && ovDuration > 0 ? ovStart + ovDuration : undefined
+
   const ovSchedule = useMemo(() => {
     if (!mortgage || overpaymentPrincipal <= 0 || ovAmt <= 0) return []
     return calcOverpaymentSchedule(
       overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType,
-      ovAmt, ovType, ovStart, ovEffect,
+      ovAmt, ovType, ovStart, ovEffect, ovEndMonth,
     )
-  }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType, ovAmt, ovType, ovStart, ovEffect])
+  }, [mortgage, overpaymentPrincipal, totalRate, overpaymentMonths, overpaymentInstType, ovAmt, ovType, ovStart, ovEffect, ovEndMonth])
 
   // Summary stats
   const baseTotalInterest = useMemo(() =>
@@ -568,6 +571,24 @@ export default function ScenariuszePage() {
                   onChange={setOvEffect}
                 />
               </div>
+
+              {ovType === 'monthly' && (
+                <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-4">
+                  <label className="text-xs text-muted-foreground">Przez ile lat nadpłacać</label>
+                  <ToggleGroup
+                    options={[
+                      { value: 0,   label: 'Zawsze' },
+                      { value: 24,  label: '2 lata' },
+                      { value: 60,  label: '5 lat' },
+                      { value: 96,  label: '8 lat' },
+                      { value: 120, label: '10 lat' },
+                      { value: 180, label: '15 lat' },
+                    ]}
+                    value={ovDuration}
+                    onChange={setOvDuration}
+                  />
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Kredyt bazowy: {hasMortgage ? `${formatPLN(overpaymentPrincipal)} / ${overpaymentMonths} mies. / ${totalRate.toFixed(2)}%` : 'brak danych'}
