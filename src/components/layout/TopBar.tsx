@@ -34,9 +34,11 @@ export function TopBar() {
       if (!file) return
       try {
         const text = await file.text()
+        const parsed = JSON.parse(text)
+        if (!parsed?.data) throw new Error('Nieprawidłowy format pliku (brak pola "data")')
         await importAllData(text)
-        toast.success('Dane zaimportowane — odśwież stronę')
-        window.location.reload()
+        toast.success('Import zakończony — przeładowuję stronę')
+        setTimeout(() => window.location.reload(), 800)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         toast.error(`Błąd importu: ${msg}`)
