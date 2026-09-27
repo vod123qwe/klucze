@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { imageFor } from '@/lib/agd/images'
 import { ShoppingCart } from 'lucide-react'
 import { formatPLN } from '@/lib/utils/format'
 import { cn } from '@/lib/utils'
@@ -40,7 +41,7 @@ function Slot({
         </span>
       )}
       <ProductImage
-        src={product.imageUrl}
+        src={imageFor(product)}
         alt={`${product.brand} ${product.model}`}
         category={product.category}
         finish={product.finish}

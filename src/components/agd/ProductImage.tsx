@@ -19,7 +19,9 @@ interface ProductImageProps {
  * Bez zdjęcia albo gdy serwer zablokuje hotlink, pokazujemy rysunek urządzenia.
  */
 export function ProductImage({ src, alt, category, finish, style, className }: ProductImageProps) {
-  const [failed, setFailed] = useState(!src)
+  // Pamiętamy, który adres się nie wczytał — przy zmianie src (np. inny produkt w popupie) próbujemy od nowa
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const failed = !src || failedSrc === src
 
   return (
     <div className={cn('relative flex items-center justify-center overflow-hidden bg-white', className)}>
@@ -32,7 +34,7 @@ export function ProductImage({ src, alt, category, finish, style, className }: P
           alt={alt}
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           className="h-full w-full object-contain p-2"
         />
       )}

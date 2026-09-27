@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { imageFor } from '@/lib/agd/images'
 import { ExternalLink, ShoppingCart, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ProductImage } from '@/components/agd/ProductImage'
@@ -66,7 +67,7 @@ export default function KoszykPage() {
               return (
                 <div key={part} className="flex gap-3 rounded-xl border border-border bg-card p-3">
                   <ProductImage
-                    src={item.product.imageUrl}
+                    src={imageFor(item.product)}
                     alt={item.product.model}
                     category={item.product.category}
                     finish={item.product.finish}
