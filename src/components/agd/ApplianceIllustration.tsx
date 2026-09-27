@@ -52,7 +52,8 @@ export function ApplianceIllustration({ category, finish = 'black', style, class
 
     case 'hob': {
       const flush = style === 'flush'
-      const flex = style === 'flex' || flush
+      const matte = style === 'matte'
+      const flex = style === 'flex' || flush || matte
       return (
         <svg viewBox="0 0 200 120" className={className} role="img" aria-label="Płyta indukcyjna">
           <defs>
@@ -64,10 +65,10 @@ export function ApplianceIllustration({ category, finish = 'black', style, class
           {flush ? (
             <rect x="8" y="10" width="184" height="100" rx="1" fill="#d8cfc3" />
           ) : (
-            <rect x="12" y="12" width="176" height="96" rx="6" fill={c.trim} />
+            <rect x="12" y="12" width="176" height="96" rx="6" fill={matte ? '#1d1f22' : c.trim} />
           )}
-          <rect x={flush ? 16 : 15} y={flush ? 16 : 15} width={flush ? 168 : 170} height={flush ? 88 : 90} rx={flush ? 1 : 5} fill="#101216" />
-          <rect x="15" y="15" width="170" height="90" rx="5" fill="url(#hobShine)" />
+          <rect x={flush ? 16 : 15} y={flush ? 16 : 15} width={flush ? 168 : 170} height={flush ? 88 : 90} rx={flush ? 1 : 5} fill={matte ? '#2b2d31' : '#101216'} />
+          {!matte && <rect x="15" y="15" width="170" height="90" rx="5" fill="url(#hobShine)" />}
           {flex ? (
             <>
               <rect x="30" y="24" width="52" height="60" rx="8" fill="none" stroke="#565c66" strokeWidth="1.5" strokeDasharray="4 3" />
@@ -121,6 +122,22 @@ export function ApplianceIllustration({ category, finish = 'black', style, class
           <rect x="126" y="22" width="18" height="8" rx="1" fill="#0a2230" />
           <circle cx="135" cy="48" r="7" fill={c.trim} />
           <rect x="128" y="66" width="14" height="4" rx="2" fill={c.accent} opacity=".7" />
+        </svg>
+      )
+
+    case 'dishwasher':
+      return (
+        <svg viewBox="0 0 120 120" className={className} role="img" aria-label="Zmywarka do zabudowy">
+          {/* w pełni zintegrowana: widać front meblowy, a panel sterowania jest na górnej krawędzi drzwi */}
+          <rect x="10" y="8" width="100" height="6" rx="1.5" fill={c.body} />
+          <rect x="44" y="9.5" width="32" height="3" rx="1" fill="#0a2230" />
+          <rect x="10" y="14" width="100" height="92" rx="2" fill="#eef0f2" stroke="#d3d8dd" />
+          <rect x="40" y="22" width="40" height="4" rx="2" fill="#8f969e" />
+          <rect x="10" y="106" width="100" height="8" rx="1" fill="#d9dde1" />
+          <circle cx="60" cy="110" r="1.6" fill="#e8533f" opacity=".9" />
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#9aa3ad" fontFamily="sans-serif">
+            front meblowy
+          </text>
         </svg>
       )
 
