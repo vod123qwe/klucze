@@ -7,6 +7,8 @@ import { formatPLN } from '@/lib/utils/format'
 import { KitchenLayout } from '@/components/agd/KitchenLayout'
 import { ProductCard } from '@/components/agd/ProductCard'
 import { VariantSwitcher } from '@/components/agd/VariantSwitcher'
+import { AlternativesSection } from '@/components/agd/AlternativesSection'
+import { AddSetToCart } from '@/components/agd/AddSetToCart'
 
 export function generateStaticParams() {
   return APPLIANCE_SETS.map(set => ({ wariant: set.slug }))
@@ -40,7 +42,7 @@ export default async function WariantPage({ params }: { params: Promise<{ warian
           <p className="mt-1 text-sm text-muted-foreground">{set.tagline}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-muted-foreground">Cały zestaw (5 urządzeń)</p>
+          <p className="text-xs text-muted-foreground">Cały zestaw ({set.products.length} urządzeń)</p>
           {oldTotal > total && (
             <p className="text-sm text-muted-foreground line-through tabular-nums">{formatPLN(oldTotal)}</p>
           )}
@@ -50,10 +52,15 @@ export default async function WariantPage({ params }: { params: Promise<{ warian
               oszczędzasz {formatPLN(oldTotal - total)} na promocjach
             </p>
           )}
+          <div className="mt-2">
+            <AddSetToCart set={set} />
+          </div>
         </div>
       </header>
 
       <KitchenLayout set={set} />
+
+      <AlternativesSection set={set} />
 
       {/* Zalety / wady */}
       <section className="grid gap-4 md:grid-cols-2">
@@ -114,7 +121,7 @@ export default async function WariantPage({ params }: { params: Promise<{ warian
         </h2>
         {PART_ORDER.map(part => {
           const product = productFor(set, part)
-          return product ? <ProductCard key={part} product={product} /> : null
+          return product ? <ProductCard key={part} product={product} setSlug={set.slug} /> : null
         })}
       </section>
 

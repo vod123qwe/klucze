@@ -13,7 +13,7 @@ export default function AgdPage() {
       <PageHeader
         className="px-0 py-0"
         title="AGD do kuchni — zestawy"
-        description="Okap, płyta indukcyjna (montaż na blat lub na równo z blatem), piekarnik, mikrofalówka i lodówka do zabudowy — w czterech przedziałach cenowych."
+        description="Okap, matowa płyta indukcyjna na blat, piekarnik, mikrofalówka, lodówka i zmywarka do zabudowy — cztery przedziały cenowe, alternatywy i własny koszyk."
       />
 
       <VariantSwitcher />
@@ -48,7 +48,7 @@ export default function AgdPage() {
               </div>
 
               {/* Pasek zdjęć całego zestawu */}
-              <div className="grid grid-cols-5 gap-1.5 bg-muted/60 p-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 bg-muted/60 p-2">
                 {PART_ORDER.map(part => {
                   const p = productFor(set, part)
                   if (!p) return <div key={part} />

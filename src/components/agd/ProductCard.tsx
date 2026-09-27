@@ -1,9 +1,10 @@
-import { BadgePercent, Check, ExternalLink, Info, Store } from 'lucide-react'
+import { BadgePercent, Check, Info } from 'lucide-react'
 import { formatPLN } from '@/lib/utils/format'
 import { PART_LABEL, type Appliance } from '@/lib/agd/types'
 import { ProductImage } from './ProductImage'
+import { ProductActions } from './ProductActions'
 
-export function ProductCard({ product }: { product: Appliance }) {
+export function ProductCard({ product, setSlug }: { product: Appliance; setSlug: string }) {
   const discount = product.oldPrice && product.oldPrice > product.price ? product.oldPrice - product.price : 0
 
   return (
@@ -75,20 +76,10 @@ export function ProductCard({ product }: { product: Appliance }) {
           </p>
         )}
 
-        <footer className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
-          <a
-            href={product.storeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Store className="h-3.5 w-3.5" />
-            {product.store}
-            <ExternalLink className="h-3 w-3" />
-          </a>
+        <footer className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+          <ProductActions product={product} setSlug={setSlug} />
           {product.otherStores.length > 0 && (
             <span className="text-muted-foreground">
-              Inne sklepy:{' '}
               {product.otherStores.map((s, i) => (
                 <span key={s.store}>
                   {i > 0 && ' · '}

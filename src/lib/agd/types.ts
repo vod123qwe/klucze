@@ -1,10 +1,10 @@
-export type AppliancePart = 'hood' | 'hob' | 'oven' | 'microwave' | 'fridge'
+export type AppliancePart = 'hood' | 'hob' | 'oven' | 'microwave' | 'fridge' | 'dishwasher'
 
 /** Wykończenie frontów — steruje kolorem rysunku urządzenia */
 export type Finish = 'black' | 'inox' | 'graphite'
 
 /** Wariant rysunku: rodzaj okapu, typ płyty, drzwi lodówki itp. */
-export type IllustrationStyle = 'telescopic' | 'chimney' | 'ceiling' | 'flex' | 'flush' | 'knobs' | 'sliding'
+export type IllustrationStyle = 'telescopic' | 'chimney' | 'ceiling' | 'flex' | 'flush' | 'knobs' | 'sliding' | 'matte'
 
 export interface StorePrice {
   store: string
@@ -34,6 +34,12 @@ export interface Appliance {
   notes?: string
 }
 
+export interface AltAppliance extends Appliance {
+  /** tańsza — podobna funkcja za mniej, lepsza — upgrade, inna — rozwiązuje słaby punkt zestawu */
+  altKind: 'tańsza' | 'lepsza' | 'inna'
+  altReason: string
+}
+
 export interface ApplianceSet {
   slug: string
   label: string
@@ -48,6 +54,7 @@ export interface ApplianceSet {
   cons: string[]
   /** Krótkie wartości do tabeli porównawczej, klucze wspólne dla wszystkich wariantów */
   compare: Record<string, string>
+  alternatives: Partial<Record<AppliancePart, AltAppliance[]>>
 }
 
 export const PART_LABEL: Record<AppliancePart, string> = {
@@ -56,9 +63,10 @@ export const PART_LABEL: Record<AppliancePart, string> = {
   oven: 'Piekarnik',
   microwave: 'Mikrofalówka',
   fridge: 'Lodówka',
+  dishwasher: 'Zmywarka',
 }
 
-export const PART_ORDER: AppliancePart[] = ['hood', 'hob', 'oven', 'microwave', 'fridge']
+export const PART_ORDER: AppliancePart[] = ['hood', 'hob', 'oven', 'microwave', 'fridge', 'dishwasher']
 
 export function setTotal(set: ApplianceSet) {
   return set.products.reduce((sum, p) => sum + p.price, 0)

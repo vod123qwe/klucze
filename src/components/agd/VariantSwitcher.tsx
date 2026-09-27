@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { formatPLN } from '@/lib/utils/format'
 import { setTotal } from '@/lib/agd/types'
 import { APPLIANCE_SETS } from '@/lib/agd/sets'
+import { CartLink } from './CartLink'
 
 export function VariantSwitcher({ activeSlug }: { activeSlug?: string }) {
   return (
@@ -42,6 +43,7 @@ export function VariantSwitcher({ activeSlug }: { activeSlug?: string }) {
           </Link>
         )
       })}
+      <CartLink active={activeSlug === 'koszyk'} />
     </nav>
   )
 }
