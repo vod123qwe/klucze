@@ -1,6 +1,7 @@
 // Pobiera zdjęcia produktowe AGD do public/agd/img/ — uruchamiane w GitHub Actions,
 // bo tam jest dostęp do stron sklepów. Źródła, po kolei:
-// 1) og:image / JSON-LD ze strony produktu (storeUrl), 2) pierwszy wynik Ceneo, 3) Bing Images.
+// 1) og:image / JSON-LD ze strony produktu (storeUrl), 2) strona producenta (BSH),
+// 3) DuckDuckGo Images, 4) Bing Images, 5) pierwszy wynik Ceneo.
 // Wynik: public/agd/img/<slug>.<ext> + manifest.json { slug: { file, source } }.
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -45,9 +46,38 @@ async function viaStore(p) {
   return fromProductPage(html, p.storeUrl)
 }
 
+const BSH_SITE = { siemens: 'siemens-home.bsh-group.com', bosch: 'bosch-home.pl' }
+
+async function viaMaker(p) {
+  const site = BSH_SITE[p.brand.toLowerCase()]
+  if (!site) return null
+  const url = `https://www.${site}/${site.startsWith('siemens') ? 'pl/' : ''}productlist/${encodeURIComponent(p.model)}`
+  const html = await (await get(url)).text()
+  return fromProductPage(html, url)
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+async function viaDuck(p) {
+  const q = `${p.brand} ${p.model}`
+  const page = await (await get(`https://duckduckgo.com/?q=${encodeURIComponent(q)}&iax=images&ia=images`)).text()
+  const vqd = page.match(/vqd=["']?([\d-]+)/)?.[1]
+  if (!vqd) throw new Error('brak tokenu vqd')
+  const res = await get(
+    `https://duckduckgo.com/i.js?l=pl-pl&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=,,,,,&p=1`,
+    'application/json',
+  )
+  const { results = [] } = await res.json()
+  const model = norm(p.model)
+  const hit = results.find(r => norm(`${r.title} ${r.image}`).includes(model))
+  return hit?.image ?? null
+}
+
 async function viaCeneo(p) {
   const url = `https://www.ceneo.pl/;szukaj-${encodeURIComponent(`${p.brand} ${p.model}`)}`
   const html = await (await get(url)).text()
+  if (!html.includes('ceneostatic')) throw new Error(`brak zdjęć na stronie (${html.length} B)`)
   const m = html.match(/(?:src|data-original|data-src)=["']((?:https?:)?\/\/image\.ceneostatic\.pl\/data\/products\/[^"']+)["']/i)
   if (!m) return null
   // miniatura → większy wariant
@@ -60,7 +90,8 @@ async function viaBing(p) {
   const urls = [...html.matchAll(/murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/g)].map(m => m[1])
   const model = p.model.toLowerCase().replace(/[^a-z0-9]/g, '')
   // Najpierw adresy z kodem modelu w nazwie pliku — mniejsze ryzyko złego produktu
-  return urls.find(u => u.toLowerCase().replace(/[^a-z0-9]/g, '').includes(model)) ?? urls[0] ?? null
+  if (urls.length === 0) throw new Error('brak wyników (limit?)')
+  return urls.find(u => u.toLowerCase().replace(/[^a-z0-9]/g, '').includes(model)) ?? null
 }
 
 async function download(url, slug) {
@@ -75,7 +106,7 @@ async function download(url, slug) {
   return file
 }
 
-const sources = { store: viaStore, ceneo: viaCeneo, bing: viaBing }
+const sources = { store: viaStore, maker: viaMaker, duck: viaDuck, bing: viaBing, ceneo: viaCeneo }
 const force = process.env.FORCE === '1'
 
 for (const p of products) {
@@ -99,6 +130,7 @@ for (const p of products) {
     } catch (e) {
       console.log(`  ${p.slug} ${name}: ${e.message}`)
     }
+    await sleep(800)
   }
   if (!done) console.log(`✗ ${p.slug}`)
 }
