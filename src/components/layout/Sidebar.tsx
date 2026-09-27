@@ -14,6 +14,7 @@ import {
   FileText,
   CheckSquare,
   BookOpen,
+  Refrigerator,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ const navItems = [
   { href: '/budzet', label: 'Budżet', icon: PiggyBank },
   { href: '/harmonogram', label: 'Harmonogram', icon: Calendar },
   { href: '/wykonczenie', label: 'Wykończenie', icon: Hammer },
+  { href: '/agd', label: 'AGD kuchnia', icon: Refrigerator },
   { href: '/scenariusze', label: 'Scenariusze', icon: Layers },
   { href: '/dokumenty', label: 'Dokumenty', icon: FileText },
   { href: '/checklista', label: 'Checklista', icon: CheckSquare },
@@ -42,6 +44,7 @@ const SECTION_LABELS: Record<string, string> = {
   '/budzet': 'Finansowanie',
   '/harmonogram': 'Finansowanie',
   '/wykonczenie': 'Planowanie',
+  '/agd': 'Planowanie',
   '/scenariusze': 'Planowanie',
   '/dokumenty': 'Archiwum',
   '/checklista': 'Archiwum',
