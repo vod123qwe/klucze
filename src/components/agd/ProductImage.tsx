@@ -15,7 +15,7 @@ interface ProductImageProps {
 }
 
 /**
- * Zdjęcia są ładowane bezpośrednio z CDN producentów/sklepów.
+ * Zdjęcia to pliki z public/agd/img (ścieżka względna) albo adresy z CDN producentów/sklepów.
  * Bez zdjęcia albo gdy serwer zablokuje hotlink, pokazujemy rysunek urządzenia.
  */
 export function ProductImage({ src, alt, category, finish, style, className }: ProductImageProps) {
@@ -28,7 +28,7 @@ export function ProductImage({ src, alt, category, finish, style, className }: P
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          src={/^https?:\/\//.test(src) ? src : `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/${src}`}
           alt={alt}
           loading="lazy"
           referrerPolicy="no-referrer"
