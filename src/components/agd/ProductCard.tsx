@@ -1,4 +1,5 @@
 import { BadgePercent, Check, Info } from 'lucide-react'
+import { imageFor } from '@/lib/agd/images'
 import { formatPLN } from '@/lib/utils/format'
 import { PART_LABEL, type Appliance } from '@/lib/agd/types'
 import { ProductImage } from './ProductImage'
@@ -13,7 +14,7 @@ export function ProductCard({ product, setSlug }: { product: Appliance; setSlug:
       className="scroll-mt-20 overflow-hidden rounded-xl border border-border bg-card md:grid md:grid-cols-[220px_1fr]"
     >
       <ProductImage
-        src={product.imageUrl}
+        src={imageFor(product)}
         alt={`${product.brand} ${product.model}`}
         category={product.category}
         finish={product.finish}

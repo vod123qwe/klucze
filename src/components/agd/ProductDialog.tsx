@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { imageFor } from '@/lib/agd/images'
 import { BadgePercent, Check, ExternalLink, Images, Info, ShoppingCart } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -42,7 +43,7 @@ function DialogBody({ product, setSlug, baseline }: { product: Appliance; setSlu
     <div className="grid md:grid-cols-[280px_1fr]">
       <div className="flex flex-col border-b border-border bg-white md:border-r md:border-b-0">
         <ProductImage
-          src={product.imageUrl}
+          src={imageFor(product)}
           alt={productQuery(product)}
           category={product.category}
           finish={product.finish}

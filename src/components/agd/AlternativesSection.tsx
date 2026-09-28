@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { imageFor } from '@/lib/agd/images'
 import { ArrowLeftRight, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPLN } from '@/lib/utils/format'
@@ -28,7 +29,7 @@ function AltTile({ alt, basePrice, onOpen }: { alt: AltAppliance; basePrice?: nu
       className="group flex gap-3 rounded-lg border border-border bg-card p-2 text-left transition hover:border-primary/40 hover:shadow-sm"
     >
       <ProductImage
-        src={alt.imageUrl}
+        src={imageFor(alt)}
         alt={`${alt.brand} ${alt.model}`}
         category={alt.category}
         finish={alt.finish}

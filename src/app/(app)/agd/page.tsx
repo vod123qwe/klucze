@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { imageFor } from '@/lib/agd/images'
 import { ArrowRight, Info } from 'lucide-react'
 import { APPLIANCE_SETS, COMPARE_ROWS, PRICES_CHECKED_AT } from '@/lib/agd/sets'
 import { PART_LABEL, PART_ORDER, productFor, setOldTotal, setTotal } from '@/lib/agd/types'
@@ -54,7 +55,7 @@ export default function AgdPage() {
                   if (!p) return <div key={part} />
                   return (
                     <div key={part} className="overflow-hidden rounded-md border border-border bg-white">
-                      <ProductImage src={p.imageUrl} alt={PART_LABEL[part]} category={part} finish={p.finish} style={p.style} className="aspect-square" />
+                      <ProductImage src={imageFor(p)} alt={PART_LABEL[part]} category={part} finish={p.finish} style={p.style} className="aspect-square" />
                       <p className="truncate border-t border-border px-1 py-0.5 text-center text-[10px] text-muted-foreground">
                         {PART_LABEL[part]}
                       </p>
